@@ -1,0 +1,5 @@
+# UI Constants
+FPS = 60
+CELL_SIZE = 20
+MAX_X = 1280
+MAX_Y = 720
