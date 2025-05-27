@@ -1,5 +1,12 @@
 # UI Constants
-FPS = 60
+FPS = 5
 CELL_SIZE = 20
 MAX_X = 1280
 MAX_Y = 720
+
+# Global Variables
+STARTING_DOB_POPULATION = 10
+ACTIVE_DOBS = []
+
+STARTING_FOOD_COUNT = 5
+ACTIVE_FOOD = []
