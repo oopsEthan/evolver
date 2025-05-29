@@ -1,7 +1,7 @@
 import pygame
 from config import *
 from dobs import Dob
-from world_objects import Food
+from world_objects import Food, Water
 
 class Simulator():
     def __init__(self, grid=False):
@@ -12,8 +12,9 @@ class Simulator():
     
     def run(self):
         self.is_running = True
-        self.populate()
+        self.place_water()
         self.place_food()
+        self.populate()
 
         while self.is_running:
             for event in pygame.event.get():
@@ -30,10 +31,13 @@ class Simulator():
             for food in ACTIVE_FOOD:
                 food.exist(self.screen)
 
+            for water in ACTIVE_WATER:
+                water.exist(self.screen)
+
             pygame.display.flip()
 
             ACTIVE_DOBS[:] = [dob for dob in ACTIVE_DOBS if dob.alive]
-            ACTIVE_FOOD[:] = [food for food in ACTIVE_FOOD if not food.eaten]
+            ACTIVE_FOOD[:] = [food for food in ACTIVE_FOOD if not food.consumed]
             self.clock.tick(FPS)
         
         pygame.quit()
@@ -47,8 +51,14 @@ class Simulator():
     def place_food(self):
         for _ in range(STARTING_FOOD_COUNT):
             food = Food()
-            print(f"Food placed: {food.get_grid_location()}")
+            print(f"Food placed: {food.get_grid_coordinates()}")
             ACTIVE_FOOD.append(food)
+
+    def place_water(self):
+        for _ in range(STARTING_WATER_SOURCES):
+            water = Water()
+            print(f"Water source placed: {water.get_grid_coordinates()}")
+            ACTIVE_WATER.append(water)
 
     def draw_grid(self):
         for x in range(0, MAX_X, CELL_SIZE):
