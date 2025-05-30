@@ -17,5 +17,8 @@ ACTIVE_WATER = []
 # Dob Constants
 DOB_TRAITS = {
     "SHORT_TERM_AGE": 3,
-    "LONG_TERM_AGE": 25
+    "LONG_TERM_AGE": 25,
+    # Dob color changes based on sex
+    "F": "#006EFF",
+    "M": "#001EFF"
 }

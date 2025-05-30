@@ -1,10 +1,8 @@
 import pygame
-from random import randrange
+from random import randrange, choice
 from config import MAX_X, MAX_Y, CELL_SIZE, ACTIVE_FOOD, ACTIVE_WATER, DOB_TRAITS
+from dobs.brain import Brain
 from world_objects import Simulation_Object
-
-SHORT = "short"
-LONG = "long"
 
 class Dob(Simulation_Object):
     _id = 0
@@ -16,7 +14,8 @@ class Dob(Simulation_Object):
 
         self.brain = Brain()
         self.alive = True
-
+        self.sex = choice(["F", "M"])
+        
         self.dna = {
             "sight": 2,
             "max_calories": 1000,
@@ -109,7 +108,7 @@ class Dob(Simulation_Object):
                         "grid_loc": object.get_grid_coordinates()
                     }
                         
-                    self.brain.memorize(self, SHORT, memory)
+                    self.brain.memorize(self, "short", memory)
                     print(f"Dob #{self.id} spotted a '{interest_type}' at {object.get_grid_coordinates()}!")
 
         return visible_tiles
@@ -123,7 +122,7 @@ class Dob(Simulation_Object):
             pass
         
     def exist(self, surface):
-        pygame.draw.circle(surface, "blue", self.current_location, CELL_SIZE/2)
+        pygame.draw.circle(surface, DOB_TRAITS[self.sex], self.current_location, CELL_SIZE/2)
         self.brain.forget()
         self.see()
         self.brain.think(self)
@@ -142,39 +141,3 @@ class Dob(Simulation_Object):
         elif need_type == "water":
             return self.current_hydration < self.dna["max_hydration"] * 0.8
         return False
-
-class Brain():
-    def __init__(self):
-        self.prioritized_thinking = [
-            ("pursue", lambda dob: any(m["type"] == "need" and dob.check_needs(m["need_type"]) for m in self.short_term_memory["visible"])),
-            ("wander", lambda dob: True),
-        ]
-
-        self.short_term_memory = {
-            "visible": []
-        }
-
-        self.long_term_memory = []
-
-    def think(self, dob):
-        for thought, condition in self.prioritized_thinking:
-            if condition(dob):
-                if not thought == "wander":
-                    print(f"Dob #{dob.id} chose to '{thought}'")
-                getattr(dob, thought)()
-                return
-
-    def memorize(self, dob, target_memory, memory):
-        already_seen = any(m["object"] == memory["object"] for m in self.short_term_memory["visible"])
-
-        if target_memory == SHORT and not already_seen:
-            memory["age"] = DOB_TRAITS["SHORT_TERM_AGE"]
-            self.short_term_memory["visible"].append(memory)
-        
-            print(f"Dob #{dob.id} memorized {memory['object'].get_grid_coordinates()}!")
-
-    def forget(self):
-        for memory in self.short_term_memory["visible"]:
-            memory["age"] -= 1
-        
-        self.short_term_memory["visible"] = [memory for memory in self.short_term_memory["visible"] if memory["age"] > 0]

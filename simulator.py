@@ -1,7 +1,8 @@
 import pygame
 from config import *
-from dobs import Dob
+from dobs.dobs import Dob
 from world_objects import Food, Water
+from random import choice
 
 class Simulator():
     def __init__(self, grid=False):
