@@ -7,12 +7,15 @@ MAX_Y = 720
 # Global Variables
 STARTING_DOB_POPULATION = 10
 ACTIVE_DOBS = []
+DOB = "dob"
 
 STARTING_FOOD_COUNT = 5
 ACTIVE_FOOD = []
+FOOD = "food"
 
 STARTING_WATER_SOURCES = 5
 ACTIVE_WATER = []
+WATER = "water"
 
 # Dob Constants
 DOB_TRAITS = {

@@ -1,7 +1,15 @@
-from config import DOB_TRAITS
+from config import *
 
 class Brain():
     def __init__(self):
+        self.dob = None
+
+        self.needs = [
+            WATER,
+            FOOD
+            # "reproduction"
+        ]
+
         self.prioritized_thinking = [
             ("pursue", lambda dob: any(m["type"] == "need" and dob.check_needs(m["need_type"]) for m in self.short_term_memory["visible"])),
             ("wander", lambda dob: True),
@@ -14,6 +22,8 @@ class Brain():
         self.long_term_memory = []
 
     def think(self, dob):
+        highest_value_need = self.dob.evaluate_state
+        
         for thought, condition in self.prioritized_thinking:
             if condition(dob):
                 if not thought == "wander":
@@ -35,3 +45,12 @@ class Brain():
             memory["age"] -= 1
         
         self.short_term_memory["visible"] = [memory for memory in self.short_term_memory["visible"] if memory["age"] > 0]
+
+    def evaluate_state(self):
+        for need in self.needs:
+            if self.dob.check(need):
+                for memory in self.short_term_memory:
+                    if need == self.short_term_memory["object"].object_tag:
+                        return need
+        
+        return None

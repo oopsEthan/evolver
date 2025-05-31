@@ -1,10 +1,11 @@
 import pygame
 from random import randrange
-from config import MAX_X, MAX_Y, CELL_SIZE
+from config import MAX_X, MAX_Y, CELL_SIZE, FOOD, WATER
 
 class Simulation_Object:
     def __init__(self):
         self.current_location = pygame.Vector2(0, 0)
+        self.energy_value = 0
     
     def spawn(self, loc="random"):
         if loc == "random":
@@ -22,6 +23,9 @@ class Simulation_Object:
         dy = abs(int(self.current_location.y // CELL_SIZE) - target[1])
         return dx + dy
 
+    def interact_with(self, interaction=""):
+        if interaction == "eat":
+            return self.energy_value
     
 class Food(Simulation_Object):
     _id = 0
@@ -30,18 +34,19 @@ class Food(Simulation_Object):
         super().__init__()
         self.id = Food._id
         Food._id += 1
+
         self.consumed = False
-        self.caloric_category = "food"
+        self.object_tag = FOOD
+        self.energy_value = 250
 
         self.spawn()
     
     def exist(self, surface):
         pygame.draw.circle(surface, "red", self.current_location, CELL_SIZE/2)
 
-    def absorb(self):
+    def interact_with(self, interaction="eat"):
         self.consumed = True
-        caloric_output = 250
-        return caloric_output, self.caloric_category
+        return super().interact_with(interaction)
     
 class Water(Simulation_Object):
     _id = 0
@@ -50,7 +55,9 @@ class Water(Simulation_Object):
         super().__init__()
         self.id = Water._id
         Water._id += 1
-        self.caloric_category = "water"
+
+        self.object_tag = WATER
+        self.energy_value = 10
 
         self.spawn()
     
@@ -59,7 +66,3 @@ class Water(Simulation_Object):
         pixel_position = self.current_location - pygame.Vector2(CELL_SIZE // 2, CELL_SIZE // 2)
         water_source = pygame.Rect(pixel_position, (CELL_SIZE, CELL_SIZE))
         pygame.draw.rect(surface, "#47CBED", water_source)
-
-    def absorb(self):
-        caloric_output = 10
-        return caloric_output, self.caloric_category

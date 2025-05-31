@@ -1,6 +1,6 @@
 import pygame
 from random import randrange, choice
-from config import MAX_X, MAX_Y, CELL_SIZE, ACTIVE_FOOD, ACTIVE_WATER, DOB_TRAITS
+from config import *
 from dobs.brain import Brain
 from world_objects import Simulation_Object
 
@@ -12,7 +12,11 @@ class Dob(Simulation_Object):
         self.id = Dob._id
         Dob._id += 1
 
+        self.object_tag = "dob"
+
         self.brain = Brain()
+        self.brain.dob = self
+
         self.alive = True
         self.sex = choice(["F", "M"])
         
@@ -28,6 +32,20 @@ class Dob(Simulation_Object):
         self.spawn()
 
     # Movement
+    # "random" = move aimlessly
+    #
+    def move_to(self, target):
+        if not target:
+            x_change = randrange(-1, 2) * CELL_SIZE
+            y_change = randrange(-1, 2) * CELL_SIZE
+
+            destination = self.current_location + pygame.Vector2(x_change, y_change)
+
+        if 0 <= destination.x < MAX_X and 0 <= destination.y < MAX_Y:
+            self.current_location = destination
+        
+        self.expend_energy(1)
+
     def wander(self):
         moved = False
 
@@ -54,7 +72,7 @@ class Dob(Simulation_Object):
         dx, dy = self.get_grid_coordinates()
         
         if abs(fx - dx) <= 1 and abs(fy - dy) <= 1:
-            self.consume(target)
+            self.consume(target["object"])
             
         move_x = fx - dx
         move_y = fy - dy
@@ -68,16 +86,11 @@ class Dob(Simulation_Object):
         self.move(new_position)
 
     def consume(self, target):
-            self.brain.short_term_memory["visible"].remove(target)
-            energy_input, energy_category = target["object"].absorb()
-
-            if energy_category == "food":
-                self.current_calories += energy_input
-                print(f"Dob #{self.id} gained {energy_input} calories, bringing them to {self.current_calories} calories!")
+            if target.object_tag == FOOD:
+                self.current_calories += target.interact_with("eat")
             
-            if energy_category == "water":
-                self.current_hydration += energy_input
-                print(f"Dob #{self.id} gained {energy_input} hydration, bringing them to {self.current_hydration} hydration!")
+            if target.object_tag == WATER:
+                self.current_hydration += target.interact_with("eat")
 
             return True
     
@@ -88,7 +101,8 @@ class Dob(Simulation_Object):
 
         interests = [
             ("need", ACTIVE_FOOD),
-            ("need", ACTIVE_WATER)
+            ("need", ACTIVE_WATER),
+            ("dob", ACTIVE_DOBS)
         ]
 
         visible_tiles = []
@@ -103,7 +117,7 @@ class Dob(Simulation_Object):
                 if object.get_grid_coordinates() in visible_tiles:
                     memory = {
                         "type": interest_type,
-                        "need_type": object.caloric_category,
+                        "need_type": object.object_tag,
                         "object": object,
                         "grid_loc": object.get_grid_coordinates()
                     }
@@ -133,11 +147,11 @@ class Dob(Simulation_Object):
             self.expend_energy(1)
             return True
         return False
-
-    def check_needs(self, need_type) -> bool:
-        print(f"Dob #{self.id}, checked needs: 'food' = '{self.current_calories < self.dna["max_calories"] * 0.8}, 'water' = '{self.current_hydration < self.dna["max_hydration"] * 0.8}'")
-        if need_type == "food":
+    
+    def check(self, req):
+        if req == FOOD:
             return self.current_calories < self.dna["max_calories"] * 0.8
-        elif need_type == "water":
-            return self.current_hydration < self.dna["max_hydration"] * 0.8
+        elif req == WATER:
+            return self.current_hydration < self.dna["max_hydration"]
+
         return False
