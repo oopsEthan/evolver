@@ -10,6 +10,8 @@ class Simulator():
         self.grid = grid
         self.screen = pygame.display.set_mode((MAX_X, MAX_Y))
         self.clock = pygame.time.Clock()
+        self.debug_call = 20
+        self.year = 0
     
     def run(self):
         self.is_running = True
@@ -38,27 +40,39 @@ class Simulator():
             pygame.display.flip()
 
             ACTIVE_DOBS[:] = [dob for dob in ACTIVE_DOBS if dob.alive]
-            ACTIVE_FOOD[:] = [food for food in ACTIVE_FOOD if not food.consumed]
+
+            if len(ACTIVE_FOOD) < STARTING_FOOD_COUNT:
+                self.place_food(1)
+
+            if self.debug_call == 10:
+                for dob in ACTIVE_DOBS:
+                    dob.debug_return_state()
+                    self.debug_call = 0
+
+            self.year += 1
+            self.debug_call += 1
             self.clock.tick(FPS)
+
+            if len(ACTIVE_DOBS) == 0:
+                print(f"All dobs have died! Simulation lasted {self.year} ticks!")
+                self.is_running = False
         
         pygame.quit()
     
     def populate(self):
         for _ in range(STARTING_DOB_POPULATION):
                 dob = Dob()
-                print(f"Dob #{dob.id} created!")
+                dob.spawn()
                 ACTIVE_DOBS.append(dob)
     
-    def place_food(self):
-        for _ in range(STARTING_FOOD_COUNT):
+    def place_food(self, food_placed=STARTING_FOOD_COUNT):
+        for _ in range(food_placed):
             food = Food()
-            print(f"Food placed: {food.get_grid_coordinates()}")
             ACTIVE_FOOD.append(food)
 
     def place_water(self):
         for _ in range(STARTING_WATER_SOURCES):
             water = Water()
-            print(f"Water source placed: {water.get_grid_coordinates()}")
             ACTIVE_WATER.append(water)
 
     def draw_grid(self):

@@ -1,17 +1,22 @@
 import pygame
 from random import randrange
-from config import MAX_X, MAX_Y, CELL_SIZE, FOOD, WATER
+from config import MAX_X, MAX_Y, CELL_SIZE, FOOD, FOOD_REGROWTH_RATE, WATER
 
 class Simulation_Object:
     def __init__(self):
         self.current_location = pygame.Vector2(0, 0)
         self.energy_value = 0
     
-    def spawn(self, loc="random"):
-        if loc == "random":
+    def spawn(self, loc=None):
+        if not loc:
             spawn_x = randrange(0, MAX_X, CELL_SIZE) + CELL_SIZE // 2
             spawn_y = randrange(0, MAX_Y, CELL_SIZE) + CELL_SIZE // 2
-            self.current_location = pygame.Vector2(spawn_x, spawn_y)
+
+        else:
+            spawn_x = loc[0] * CELL_SIZE + CELL_SIZE // 2
+            spawn_y = loc[1] * CELL_SIZE + CELL_SIZE // 2
+        
+        self.current_location = pygame.Vector2(spawn_x, spawn_y)
 
     def get_grid_coordinates(self):
         grid_x = int(self.current_location.x // CELL_SIZE)
@@ -37,12 +42,21 @@ class Food(Simulation_Object):
 
         self.consumed = False
         self.object_tag = FOOD
+        self.regrowth = 0
         self.energy_value = 250
 
         self.spawn()
     
     def exist(self, surface):
-        pygame.draw.circle(surface, "red", self.current_location, CELL_SIZE/2)
+        if not self.consumed:
+            pygame.draw.circle(surface, "red", self.current_location, CELL_SIZE/2)
+
+        else:
+            if self.regrowth == FOOD_REGROWTH_RATE:
+                self.consumed = False
+                self.regrowth = 0
+            
+            self.regrowth += 1
 
     def interact_with(self, interaction="eat"):
         self.consumed = True
@@ -57,7 +71,7 @@ class Water(Simulation_Object):
         Water._id += 1
 
         self.object_tag = WATER
-        self.energy_value = 10
+        self.energy_value = 25
 
         self.spawn()
     
