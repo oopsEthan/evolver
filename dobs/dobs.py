@@ -32,64 +32,37 @@ class Dob(Simulation_Object):
         self.spawn()
 
     # Movement
-    # "random" = move aimlessly
-    #
-    def move_to(self, target):
+    def move_to(self, target=None):
         if not target:
             x_change = randrange(-1, 2) * CELL_SIZE
             y_change = randrange(-1, 2) * CELL_SIZE
 
             destination = self.current_location + pygame.Vector2(x_change, y_change)
 
+        if target:
+            tx, ty = target["grid_loc"]
+            dx, dy = self.get_grid_coordinates()
+
+            move_x = tx - dx
+            move_y = ty - dy
+
+            if abs(move_x) > abs(move_y):
+                step = pygame.Vector2(CELL_SIZE if move_x > 0 else -CELL_SIZE, 0)
+            else:
+                step = pygame.Vector2(0, CELL_SIZE if move_y > 0 else -CELL_SIZE)
+
+            destination = self.current_location + step
+
         if 0 <= destination.x < MAX_X and 0 <= destination.y < MAX_Y:
             self.current_location = destination
         
         self.expend_energy(1)
 
-    def wander(self):
-        moved = False
-
-        while not moved:
-            x_change = randrange(-1, 2) * CELL_SIZE
-            y_change = randrange(-1, 2) * CELL_SIZE
-
-            new_position = self.current_location + pygame.Vector2(x_change, y_change)
-
-            moved = self.move(new_position)
-
-    def pursue(self):
-        known_need = [mem for mem in self.brain.short_term_memory["visible"] if mem["type"] == "need"]
-
-        if not known_need:
-            return False
-        
-        target = min(
-            known_need,
-            key=lambda m: self.get_grid_distance_between(m["grid_loc"])
-        )
-
-        fx, fy = target["grid_loc"]
-        dx, dy = self.get_grid_coordinates()
-        
-        if abs(fx - dx) <= 1 and abs(fy - dy) <= 1:
-            self.consume(target["object"])
-            
-        move_x = fx - dx
-        move_y = fy - dy
-
-        if abs(move_x) > abs(move_y):
-            step = pygame.Vector2(CELL_SIZE if move_x > 0 else -CELL_SIZE, 0)
-        else:
-            step = pygame.Vector2(0, CELL_SIZE if move_y > 0 else -CELL_SIZE)
-        
-        new_position = self.current_location + step
-        self.move(new_position)
-
-    def consume(self, target):
+    def interact(self, target):
             if target.object_tag == FOOD:
                 self.current_calories += target.interact_with("eat")
             
-            if target.object_tag == WATER:
+            elif target.object_tag == WATER:
                 self.current_hydration += target.interact_with("eat")
 
             return True
@@ -139,7 +112,7 @@ class Dob(Simulation_Object):
         pygame.draw.circle(surface, DOB_TRAITS[self.sex], self.current_location, CELL_SIZE/2)
         self.brain.forget()
         self.see()
-        self.brain.think(self)
+        self.brain.think()
     
     def move(self, destination) -> bool:
         if 0 <= destination.x < MAX_X and 0 <= destination.y < MAX_Y:

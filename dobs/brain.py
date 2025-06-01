@@ -10,47 +10,46 @@ class Brain():
             # "reproduction"
         ]
 
-        self.prioritized_thinking = [
-            ("pursue", lambda dob: any(m["type"] == "need" and dob.check_needs(m["need_type"]) for m in self.short_term_memory["visible"])),
-            ("wander", lambda dob: True),
-        ]
-
-        self.short_term_memory = {
-            "visible": []
-        }
-
+        self.short_term_memory = []
         self.long_term_memory = []
 
-    def think(self, dob):
-        highest_value_need = self.dob.evaluate_state
-        
-        for thought, condition in self.prioritized_thinking:
-            if condition(dob):
-                if not thought == "wander":
-                    print(f"Dob #{dob.id} chose to '{thought}'")
-                getattr(dob, thought)()
+    def think(self):
+        target = self.evaluate()
+
+        if target:
+            tx, ty = target["grid_loc"]
+            dx, dy = self.dob.get_grid_coordinates()
+
+            if abs(tx - dx) + abs(ty - dy) == 1:
+                self.dob.interact(target["object"])
                 return
+            
+            self.dob.move_to(target)
+
+        elif not target:
+            self.dob.move_to()
 
     def memorize(self, dob, target_memory, memory):
-        already_seen = any(m["object"] == memory["object"] for m in self.short_term_memory["visible"])
+        already_seen = any(m["object"] == memory["object"] for m in self.short_term_memory)
 
         if target_memory == "short" and not already_seen:
             memory["age"] = DOB_TRAITS["SHORT_TERM_AGE"]
-            self.short_term_memory["visible"].append(memory)
+            self.short_term_memory.append(memory)
         
             print(f"Dob #{dob.id} memorized {memory['object'].get_grid_coordinates()}!")
 
     def forget(self):
-        for memory in self.short_term_memory["visible"]:
+        for memory in self.short_term_memory:
             memory["age"] -= 1
         
-        self.short_term_memory["visible"] = [memory for memory in self.short_term_memory["visible"] if memory["age"] > 0]
+        self.short_term_memory = [memory for memory in self.short_term_memory if memory["age"] > 0]
 
-    def evaluate_state(self):
+    def evaluate(self):
         for need in self.needs:
             if self.dob.check(need):
-                for memory in self.short_term_memory:
-                    if need == self.short_term_memory["object"].object_tag:
-                        return need
+                matches = [m for m in self.short_term_memory if m["object"].object_tag == need]
+                if matches:
+                    target = min(matches, key=lambda m: self.dob.get_grid_distance_between(m["grid_loc"]))
+                    return target
         
         return None
