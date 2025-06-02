@@ -3,6 +3,7 @@ from config import *
 from dobs.dobs import Dob
 from world_objects import Food, Water
 from random import choice
+from data.data_collector import Data_Collector
 
 class Simulator():
     def __init__(self, grid=False):
@@ -13,6 +14,8 @@ class Simulator():
         self.clock = pygame.time.Clock()
         self.debug_call = 20
         self.year = 0
+
+        self.data_collector = Data_Collector()
     
     def run(self):
         self.is_running = True
@@ -31,6 +34,9 @@ class Simulator():
             
             for dob in ACTIVE_DOBS:
                 dob.exist(self.screen)
+                if dob.alive == False:
+                    self.data_collector.add_data_to_package(dob.package)
+                    ACTIVE_DOBS.remove(dob)
             
             for food in ACTIVE_FOOD:
                 food.exist(self.screen)
@@ -39,8 +45,6 @@ class Simulator():
                 water.exist(self.screen)
 
             pygame.display.flip()
-
-            ACTIVE_DOBS[:] = [dob for dob in ACTIVE_DOBS if dob.alive]
 
             if len(ACTIVE_FOOD) < STARTING_FOOD_COUNT:
                 self.place_food(1)
@@ -58,6 +62,7 @@ class Simulator():
                 print(f"All dobs have died! Simulation lasted {self.year} ticks!")
                 self.is_running = False
         
+        self.data_collector.generate_data_file()
         pygame.quit()
     
     def populate(self):

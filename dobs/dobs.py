@@ -155,17 +155,19 @@ class Dob(Simulation_Object):
     
     def die(self):
         if self.age >= DOB_TRAITS["DEATH_AGE"]:
-            print(f"Dob #{self.id} died of old age. Age='{self.age}'")
+            self.create_data_package("old_age")
 
         elif self.current_calories <= 0:
-            print(f"Dob #{self.id} died of starvation!")
-            self.debug_return_state()
+            self.create_data_package("starvation")
 
         elif self.current_hydration <= 0:
-            print(f"Dob #{self.id} died of dehydration!")
-            self.debug_return_state()
+            self.create_data_package("dehydration")
         
         self.alive = False
 
-    def debug_return_state(self):
-        print(f"Dob #{self.id}, status: '{self.sex}', 'calories'={self.current_calories}, 'hydration'={self.current_hydration}, 'reproduction'={self.check(REPRODUCTION)}")
+    def create_data_package(self, cod):
+        self.package = {
+            "id": self.id,
+            "age": self.age,
+            "cause_of_death": cod,
+        }
