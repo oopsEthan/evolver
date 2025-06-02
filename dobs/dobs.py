@@ -7,20 +7,19 @@ from world_objects import Simulation_Object
 class Dob(Simulation_Object):
     _id = 0
 
-    def __init__(self):
+    def __init__(self, sex=choice(["F", "M"])):
         super().__init__()
-        self.id = Dob._id
-        Dob._id += 1
-
-        self.object_tag = DOB
+        self.register()
 
         self.brain = Brain()
         self.brain.dob = self
         self.toggle = True
         self.alive = True
-        self.sex = choice(["F", "M"])
+        self.sex = sex
         self.sex_drive = 0
         self.age = 0
+        self.offspring = 0
+        self.cod = ""
         
         self.dna = {
             "sight": 3,
@@ -117,7 +116,7 @@ class Dob(Simulation_Object):
         pygame.draw.circle(surface, DOB_TRAITS[self.sex], self.current_location, CELL_SIZE/2)
 
         if self.sex_drive < DEFAULT_SEX_DRIVE:
-            self.sex_drive += 1
+            self.sex_drive += 0.5
 
         self.brain.forget()
         self.see()
@@ -131,17 +130,21 @@ class Dob(Simulation_Object):
             self.toggle = False
     
     def mate(self, target):
-        female = target if target.sex == "F" else self
+        female, male = (target, self) if target.sex == "F" else (self, target)
 
         if target.sex_drive >= DEFAULT_SEX_DRIVE and target.age >= MATING_AGE:
             dob = Dob()
             dob.spawn(female.get_grid_coordinates())
             ACTIVE_DOBS.append(dob)
 
-            target.sex_drive = 0
-            target.expend_energy(5)
-            self.sex_drive = 0
-            self.expend_energy(3)
+            female.sex_drive = 0
+            female.expend_energy(5)
+            female.offspring += 1
+            male.sex_drive = 0
+            male.expend_energy(3)
+            return
+        
+        self.sex_drive -= 5
 
     def check(self, req):
         if req == FOOD:
@@ -149,25 +152,39 @@ class Dob(Simulation_Object):
         elif req == WATER:
             return self.current_hydration < self.dna["max_hydration"] * self.thirst_threshhold
         elif req == REPRODUCTION and self.age >= MATING_AGE:
-            return self.current_calories > self.dna["max_calories"] * 0.4 and self.current_hydration > self.dna["max_hydration"] * 0.4
+            return self.current_calories > self.dna["max_calories"] * 0.6 and self.current_hydration > self.dna["max_hydration"] * 0.6
         
         return False
     
+    # RIP
     def die(self):
         if self.age >= DOB_TRAITS["DEATH_AGE"]:
-            self.create_data_package("old_age")
+            self.cod = "age"
 
         elif self.current_calories <= 0:
-            self.create_data_package("starvation")
+            self.cod = "starvation"
 
         elif self.current_hydration <= 0:
-            self.create_data_package("dehydration")
+            self.cod = "dehydration"
         
         self.alive = False
 
-    def create_data_package(self, cod):
-        self.package = {
-            "id": self.id,
+    def collect_package(self):
+        package = {
             "age": self.age,
-            "cause_of_death": cod,
+            "offspring": self.offspring
         }
+
+        if self.cod:
+            package["cod"] = self.cod
+        
+        return package
+
+    # Helper functions
+    def register(self):
+        self.id = Dob._id
+        Dob._id += 1
+
+        self.object_tag = DOB
+        DOB_DB.append(self)
+        ACTIVE_DOBS.append(self)
