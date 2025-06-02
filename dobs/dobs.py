@@ -170,10 +170,10 @@ class Dob(Simulation_Object):
         self.alive = False
 
     def collect_package(self):
-        package = {
-            "age": self.age,
-            "offspring": self.offspring
-        }
+        package = {}
+
+        if self.offspring > 0:
+            package["offspring"] = self.offspring
 
         if self.cod:
             package["cod"] = self.cod
@@ -186,5 +186,4 @@ class Dob(Simulation_Object):
         Dob._id += 1
 
         self.object_tag = DOB
-        DOB_DB.append(self)
         ACTIVE_DOBS.append(self)

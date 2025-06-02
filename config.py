@@ -21,7 +21,6 @@ STARTING_WATER_SOURCES = 10
 
 # Dob Constants
 ACTIVE_DOBS = []
-DOB_DB = []
 DOB = "dob"
 REPRODUCTION = "reproduction"
 

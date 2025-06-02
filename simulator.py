@@ -32,11 +32,8 @@ class Simulator():
             for dob in ACTIVE_DOBS:
                 dob.exist(self.screen)
                 if dob.alive == False:
-                    self.data_collector.log_death(dob)
+                    self.data_collector.report(DOB, dob.collect_package())
                     ACTIVE_DOBS.remove(dob)
-
-            if self.tick % SNAPSHOT_FREQUENCY == 0:
-                self.data_collector.log_dobs()
             
             for food in ACTIVE_FOOD:
                 food.exist(self.screen)
@@ -65,13 +62,14 @@ class Simulator():
                 self.is_running = False
         
             if self.tick % SNAPSHOT_FREQUENCY == 0:
-                self.data_collector.generate_snapshot(self.tick)
+                print(f"Generating snapshot at {self.tick}...")
+                self.data_collector.generate_snapshot()
             
             # <- End of tick
             self.tick += 1
 
         # <- Once simulation ends
-        self.data_collector.generate_snapshot(self.tick)
+        self.data_collector.generate_snapshot()
         self.data_collector.save_to_data_file()
         pygame.quit()
     

@@ -1,9 +1,8 @@
 import json
-from config import ACTIVE_DOBS, DOB_DB
+from config import ACTIVE_DOBS, DOB, STARTING_DOB_POPULATION
 
 class Data_Collector():
     def __init__(self):
-        self.dob_log = []
         self.data = []
 
         # Death counters
@@ -16,7 +15,9 @@ class Data_Collector():
         self.total_alive = 0
         self.total_births = 0
 
-        self.last_snapshot = {}
+        self.last_snapshot = {
+            "dobs": STARTING_DOB_POPULATION,
+        }
 
         self.save_to_data_file()
 
@@ -24,50 +25,44 @@ class Data_Collector():
         with open ("simulation_results.json", "w") as f:
             json.dump(self.data, f, indent=4)
 
-    def log_dobs(self):
-        for dob in DOB_DB:
-            if not dob in self.dob_log:
-                self.total_alive += 1
-                self.dob_log.append(dob.id)
-            
-            if dob.offspring > self.dob_log[dob].offspring:
-                self.total_births -= self.dob_log[dob].offspring
-                self.total_births += dob.offspring
+    def report(self, target, package):
+        if target == DOB:
+            self.log_death(package["cod"])
 
-    def log_death(self, dob):
+    def log_death(self, cod):
         self.total_deaths += 1
-        if dob.cod == "starvation":
+        if cod == "starvation":
             self.total_starved += 1
-        elif dob.cod == "dehydration":
+        elif cod == "dehydration":
             self.total_dehydrated += 1
-        elif dob.cod == "age":
+        elif cod == "age":
             self.total_olds += 1
 
-    def generate_snapshot(self, ticks):
-        pass
+    def generate_snapshot(self):
         snapshot = {
-            "ticks": ticks,
-            "total_dobs": len(DOB_DB),
+            "dobs": len(ACTIVE_DOBS) + self.total_deaths,
             "total_alive": len(ACTIVE_DOBS)
         }
 
-        if total_births > 0:
-            snapshot["total_births"] = total_births
+        if self.total_births > 0:
+            snapshot["total_births"] = self.total_births
 
         if self.total_deaths > 0:
             snapshot["death"] = {
                 "total_deaths": self.total_deaths,
-                "perc_starved": round(total_starved / self.total_deaths, 2),
-                "perc_dehydrated": round(total_dehydrated / total_deaths, 2),
-                "perc_age": round(total_olds / total_deaths, 2),
+                "perc_starved": round(self.total_starved / self.total_deaths, 2),
+                "perc_dehydrated": round(self.total_dehydrated / self.total_deaths, 2),
+                "perc_age": round(self.total_olds / self.total_deaths, 2),
             }
 
         if snapshot == self.last_snapshot:
             print("No snapshot, nothing changed...")
             return
 
+        if snapshot["dobs"] > self.last_snapshot["dobs"]:
+            self.total_births += snapshot["dobs"] - self.last_snapshot["dobs"]
+            snapshot["total_births"] = self.total_births
+
         self.last_snapshot = snapshot
 
-        print(f"Generating snapshot at {ticks}...")
         self.data.append(snapshot)
-        self.dob_packages = []
