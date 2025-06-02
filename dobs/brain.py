@@ -5,9 +5,9 @@ class Brain():
         self.dob = None
 
         self.needs = [
-            REPRODUCTION,
             WATER,
-            FOOD
+            FOOD,
+            REPRODUCTION
         ]
 
         self.short_term_memory = []
@@ -41,11 +41,7 @@ class Brain():
                 self.long_term_memory.append(obj)
 
     def forget(self):
-        updated_memory = []
-        for obj, age in self.short_term_memory:
-            if age > 1:
-                updated_memory.append((obj, age - 1))
-        self.short_term_memory = updated_memory
+        self.short_term_memory = [(memory, age - 1) for memory, age in self.short_term_memory if age > 1]
 
     def evaluate(self):
         target = None
@@ -55,18 +51,17 @@ class Brain():
                 matches = self.remember("short", need) + self.remember("long", need)
                 if matches:
                     target = min(matches, key=lambda m: self.dob.get_grid_distance_between(m.get_grid_coordinates()))
+                    break
 
-            elif (self.dob.check(need) and
-                  need == REPRODUCTION and
-                  self.dob.sex_drive >= 30):
+            elif self.dob.check(need) and need == REPRODUCTION and self.dob.sex_drive >= DEFAULT_SEX_DRIVE:
                 matches = [obj for obj, _ in self.short_term_memory
-                           if obj.object_tag == "dob" and obj.sex != self.dob.sex]
+                           if obj.object_tag == DOB and obj.sex != self.dob.sex]
                 if matches:
                     target = min(matches, key=lambda m: self.dob.get_grid_distance_between(m.get_grid_coordinates()))
+                    break
 
-            if target:
-                print(f"Dob #{self.dob.id} is targeting '{target.object_tag}'!")
-                return target
+        if target:
+            return target
 
         return None
 

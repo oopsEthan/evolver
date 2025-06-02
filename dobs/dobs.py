@@ -12,7 +12,7 @@ class Dob(Simulation_Object):
         self.id = Dob._id
         Dob._id += 1
 
-        self.object_tag = "dob"
+        self.object_tag = DOB
 
         self.brain = Brain()
         self.brain.dob = self
@@ -74,11 +74,12 @@ class Dob(Simulation_Object):
                 self.current_calories += target.interact_with("eat")
             
             elif target.object_tag == WATER:
-                self.brain.memorize(self, "long", target)
+                self.brain.memorize("long", target)
                 self.thirst_threshhold = 0.4
                 self.current_hydration += target.interact_with("eat")
 
             elif target.object_tag == DOB:
+                print("Attempting interaction with a dob!")
                 self.mate(target)
 
             return True
@@ -102,7 +103,7 @@ class Dob(Simulation_Object):
                 if object is self:
                     continue
                 if object.get_grid_coordinates() in visible_tiles:
-                    self.brain.memorize(self, "short", object)
+                    self.brain.memorize("short", object)
 
         return visible_tiles
 
@@ -128,7 +129,6 @@ class Dob(Simulation_Object):
             self.die()
 
         if self.age >= MATING_AGE and self.sex_drive >= DEFAULT_SEX_DRIVE and self.toggle:
-            print(f"Dob #{self.id} is eligible to reproduce!")
             self.toggle = False
     
     def mate(self, target):
@@ -153,7 +153,7 @@ class Dob(Simulation_Object):
             return self.current_calories < self.dna["max_calories"] * self.hunger_threshhold
         elif req == WATER:
             return self.current_hydration < self.dna["max_hydration"] * self.thirst_threshhold
-        elif req == REPRODUCTION:
+        elif req == REPRODUCTION and self.age >= MATING_AGE:
             return self.current_calories > self.dna["max_calories"] * 0.4 and self.current_hydration > self.dna["max_hydration"] * 0.4
         
         return False
