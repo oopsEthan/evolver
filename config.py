@@ -25,8 +25,8 @@ DOB_TRAITS = {
     # Dob color changes based on sex
     "F": "#006EFF",
     "M": "#001EFF",
-    "DEATH_AGE": 2000,
+    "DEATH_AGE": 200,
 }
 REPRODUCTION = "reproduction"
-DEFAULT_SEX_DRIVE = 10
+DEFAULT_SEX_DRIVE = 20
 MATING_AGE = 30

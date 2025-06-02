@@ -136,7 +136,6 @@ class Dob(Simulation_Object):
         if target.sex_drive >= DEFAULT_SEX_DRIVE and target.age >= MATING_AGE:
             dob = Dob()
             dob.spawn(female.get_grid_coordinates())
-            print(f"Dob #{self.id} and Dob #{target.id} procreated, giving birth to Dob #{dob.id}!")
             ACTIVE_DOBS.append(dob)
 
             target.sex_drive = 0

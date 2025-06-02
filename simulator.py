@@ -7,6 +7,7 @@ from random import choice
 class Simulator():
     def __init__(self, grid=False):
         pygame.init()
+        pygame.display.set_caption("Evolver")
         self.grid = grid
         self.screen = pygame.display.set_mode((MAX_X, MAX_Y))
         self.clock = pygame.time.Clock()

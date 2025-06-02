@@ -37,7 +37,6 @@ class Brain():
 
         elif target_memory == "long":
             if obj not in self.long_term_memory:
-                print(f"Dob #{self.dob.id} memorized an object's location: '{obj.object_tag}'={obj.get_grid_coordinates()}")
                 self.long_term_memory.append(obj)
 
     def forget(self):
