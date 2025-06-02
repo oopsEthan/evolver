@@ -84,7 +84,7 @@ class Water(Simulation_Object):
         water_source = pygame.Rect(pixel_position, (CELL_SIZE, CELL_SIZE))
         pygame.draw.rect(surface, "#47CBED", water_source)
 
-    def cascade(self):
+    def cascade(self, override=False):
         directions = [
             (1, 0),
             (-1, 0),
@@ -92,7 +92,7 @@ class Water(Simulation_Object):
             (0, -1)
         ]
 
-        if random() <= self.chance_to_cascade:
+        if random() <= self.chance_to_cascade or override:
             direction = choice(directions)
 
             gx, gy = self.get_grid_coordinates()
@@ -104,6 +104,7 @@ class Water(Simulation_Object):
 
             for obj in ACTIVE_WATER:
                 if obj.get_grid_coordinates() == new_coords:
+                    self.cascade(True)
                     return
 
             water = Water(from_cascade=True, cascade_chance=self.chance_to_cascade - 0.02)
