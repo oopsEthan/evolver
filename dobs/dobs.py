@@ -79,7 +79,6 @@ class Dob(Simulation_Object):
                 self.current_hydration += target.interact_with("eat")
 
             elif target.object_tag == DOB:
-                print("Attempting interaction with a dob!")
                 self.mate(target)
 
             return True
@@ -144,9 +143,6 @@ class Dob(Simulation_Object):
             target.expend_energy(5)
             self.sex_drive = 0
             self.expend_energy(3)
-        
-        else:
-            print(f"Reproduction failed, dob #{self.id}: '{self.sex_drive}', '{self.age}' and dob #{target.id}: '{target.sex_drive}', '{target.age}'")
 
     def check(self, req):
         if req == FOOD:
