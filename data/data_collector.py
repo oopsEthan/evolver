@@ -27,15 +27,15 @@ class Data_Collector():
 
     def report(self, target, package):
         if target == DOB:
-            self.log_death(package["cod"])
+            self.log_death(package["cause_of_death"])
 
-    def log_death(self, cod):
+    def log_death(self, cause_of_death):
         self.total_deaths += 1
-        if cod == "starvation":
+        if cause_of_death == "starvation":
             self.total_starved += 1
-        elif cod == "dehydration":
+        elif cause_of_death == "dehydration":
             self.total_dehydrated += 1
-        elif cod == "age":
+        elif cause_of_death == "age":
             self.total_olds += 1
 
     def generate_snapshot(self):

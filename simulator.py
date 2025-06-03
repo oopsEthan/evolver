@@ -78,7 +78,7 @@ class Simulator():
         for _ in range(STARTING_DOB_POPULATION):
                 sex = "F" if i % 2 == 0 else "M"
                 dob = Dob(sex)
-                dob.spawn()
+                dob.place()
                 i += 1
     
     def place_food(self, food_placed=STARTING_FOOD_COUNT):

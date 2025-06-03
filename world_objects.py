@@ -7,7 +7,7 @@ class Simulation_Object:
         self.current_location = pygame.Vector2(0, 0)
         self.energy_value = 0
     
-    def spawn(self, loc=None):
+    def place(self, loc=None):
         if not loc:
             spawn_x = randrange(0, MAX_X, CELL_SIZE) + CELL_SIZE // 2
             spawn_y = randrange(0, MAX_Y, CELL_SIZE) + CELL_SIZE // 2
@@ -31,6 +31,12 @@ class Simulation_Object:
     def interact_with(self, interaction=""):
         if interaction == "eat":
             return self.energy_value
+    
+    def within_bounds(self, destination, grid=False):
+        if grid:
+            x, y = destination
+            return 0 <= x < MAX_X // CELL_SIZE and 0 <= y < MAX_Y // CELL_SIZE
+        return 0 <= destination.x < MAX_X and 0 <= destination.y < MAX_Y
     
 class Food(Simulation_Object):
     _id = 0
@@ -79,7 +85,6 @@ class Water(Simulation_Object):
             self.cascade()
     
     def exist(self, surface):
-        # Gotta find a way to make this look more like real water or at least spread it out
         pixel_position = self.current_location - pygame.Vector2(CELL_SIZE // 2, CELL_SIZE // 2)
         water_source = pygame.Rect(pixel_position, (CELL_SIZE, CELL_SIZE))
         pygame.draw.rect(surface, "#47CBED", water_source)
@@ -99,7 +104,7 @@ class Water(Simulation_Object):
             print(f"Source at: {self.get_grid_coordinates()}")
             new_coords = (gx + direction[0], gy + direction[1])
 
-            if not (0 <= new_coords[0] < MAX_X // CELL_SIZE and 0 <= new_coords[1] < MAX_Y // CELL_SIZE):
+            if not self.within_bounds(new_coords, grid=True):
                 return
 
             for obj in ACTIVE_WATER:

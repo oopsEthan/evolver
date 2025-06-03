@@ -23,14 +23,16 @@ STARTING_WATER_SOURCES = 10
 ACTIVE_DOBS = []
 DOB = "dob"
 REPRODUCTION = "reproduction"
+SHORT_TERM = "short"
+LONG_TERM = "long"
 
 ## Dob Settings
 STARTING_DOB_POPULATION = 10
 
 DOB_TRAITS = {
-    # Memory ages affect how long dobs remember things
-    "SHORT_TERM_AGE": 5,
-    "LONG_TERM_AGE": 25,
+    # Memory ages -> affect how long dobs remember things
+    "short": 5,
+    "long": 500,
     # Dob color changes based on sex
     "F": "#006EFF",
     "M": "#001EFF",
@@ -38,7 +40,7 @@ DOB_TRAITS = {
 }
 
 # Age
-DEFAULT_SEX_DRIVE = 15
+SEX_COOLDOWN = 10
 MATING_AGE = 50
 
 # Data Settings

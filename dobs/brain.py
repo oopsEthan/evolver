@@ -10,9 +10,12 @@ class Brain():
             REPRODUCTION
         ]
 
-        self.short_term_memory = []
-        self.long_term_memory = []
-
+        self.memory = {
+            "short": [],
+            "long": []
+        }
+    
+    # Function called to determine what a dob is going to do
     def think(self):
         target = self.evaluate()
 
@@ -25,48 +28,50 @@ class Brain():
                 return
             
             self.dob.move_to(target)
+            return
 
         else:
             self.dob.move_to()
 
-    def memorize(self, target_memory, obj):
-        if target_memory == "short":
-            already_seen = any(m[0] == obj for m in self.short_term_memory)
-            if not already_seen:
-                self.short_term_memory.append((obj, DOB_TRAITS["SHORT_TERM_AGE"]))
-
-        elif target_memory == "long":
-            if obj not in self.long_term_memory:
-                self.long_term_memory.append(obj)
-
-    def forget(self):
-        self.short_term_memory = [(memory, age - 1) for memory, age in self.short_term_memory if age > 1]
-
+    # Evaluates what a dob needs most at any given time
     def evaluate(self):
-        target = None
+        if self.dob.is_thirsty():
+            return self.get_closest_target(WATER)
 
-        for need in self.needs:
-            if self.dob.check(need) and (need == FOOD or need == WATER):
-                matches = self.remember("short", need) + self.remember("long", need)
-                if matches:
-                    target = min(matches, key=lambda m: self.dob.get_grid_distance_between(m.get_grid_coordinates()))
-                    break
+        elif self.dob.is_hungry():
+            return self.get_closest_target(FOOD)
 
-            elif self.dob.check(need) and need == REPRODUCTION and self.dob.sex_drive >= DEFAULT_SEX_DRIVE:
-                matches = [obj for obj, _ in self.short_term_memory
-                           if obj.object_tag == DOB and obj.sex != self.dob.sex]
-                if matches:
-                    target = min(matches, key=lambda m: self.dob.get_grid_distance_between(m.get_grid_coordinates()))
-                    break
-
-        if target:
-            return target
+        elif self.dob.can_mate():
+            matches = [obj for obj, _ in self.memory[SHORT_TERM] if obj.object_tag == DOB and obj.sex != self.dob.sex]
+            if matches:
+                return min(matches, key=lambda m: self.dob.get_grid_distance_between(m.get_grid_coordinates()))
 
         return None
+    
+    # Memorize an object to memory.
+    def memorize(self, memory_type, object):
+        already_memorized = any(m[0] == object for m in self.memory[memory_type])
 
-    def remember(self, target_memory, need_tag):
-        if target_memory == "short":
-            return [obj for obj, _ in self.short_term_memory if obj.object_tag == need_tag]
+        if not already_memorized:
+            self.memory[memory_type].append((object, DOB_TRAITS[memory_type]))
+    
+    ## Helper functions
+    # Get the closet target to the dob
+    def get_closest_target(self, target):
+        matches = self.check_memories(target)
+        if matches:
+            return min(matches, key=lambda m: self.dob.get_grid_distance_between(m.get_grid_coordinates()))
         
-        elif target_memory == "long":
-            return [obj for obj in self.long_term_memory if obj.object_tag == need_tag]
+        return None
+
+    # Checks memories for target, short-term is prioritized
+    def check_memories(self, target):
+        short = [o for o, _ in self.memory[SHORT_TERM] if o.object_tag == target]
+        long = [o for o, _ in self.memory[LONG_TERM] if o.object_tag == target]
+        
+        return short + long
+
+    # Ages memories by 1 per tick, if age == 0, the memory is forgotten
+    def age_memories(self):
+        for memory_type in self.memory:
+            self.memory[memory_type] = [(mem, age - 1) for mem, age in self.memory[memory_type] if age > 1]
