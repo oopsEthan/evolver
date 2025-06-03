@@ -1,4 +1,4 @@
-from config import *
+from utilities.config import *
 
 class Brain():
     def __init__(self):

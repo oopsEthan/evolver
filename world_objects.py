@@ -1,42 +1,42 @@
 import pygame
 from random import randrange, random, choice
-from config import MAX_X, MAX_Y, CELL_SIZE, FOOD, FOOD_REGROWTH_RATE, WATER, ACTIVE_WATER
+from utilities.config import MAX_X, MAX_Y, CELL_SIZE, FOOD, FOOD_REGROWTH_RATE, WATER, ACTIVE_WATER, GRID_CARDINALS
+from utilities.utils import to_pixel, to_grid
 
 class Simulation_Object:
     def __init__(self):
-        self.current_location = pygame.Vector2(0, 0)
+        self.current_loc = pygame.Vector2(0, 0)
         self.energy_value = 0
     
+    # Places a simulation object at loc (x,y) on the grid, if no loc provided, random
     def place(self, loc=None):
         if not loc:
-            spawn_x = randrange(0, MAX_X, CELL_SIZE) + CELL_SIZE // 2
-            spawn_y = randrange(0, MAX_Y, CELL_SIZE) + CELL_SIZE // 2
+            spawn_x = to_pixel(randrange(0, MAX_X, CELL_SIZE))
+            spawn_y = to_pixel(randrange(0, MAX_Y, CELL_SIZE))
 
-        else:
-            spawn_x = loc[0] * CELL_SIZE + CELL_SIZE // 2
-            spawn_y = loc[1] * CELL_SIZE + CELL_SIZE // 2
+        if loc:
+            spawn_x, spawn_y = to_pixel(loc)
         
-        self.current_location = pygame.Vector2(spawn_x, spawn_y)
+        self.current_loc = pygame.Vector2(spawn_x, spawn_y)
 
-    def get_grid_coordinates(self):
-        grid_x = int(self.current_location.x // CELL_SIZE)
-        grid_y = int(self.current_location.y // CELL_SIZE)
-        return grid_x, grid_y
+    # Returns the grid coordinates (x,y) of the object
+    def get_grid(self):
+        return to_grid(self.current_loc)
     
+    # Gets the grid distance between object and the target
     def get_grid_distance_between(self, target):
-        dx = abs(int(self.current_location.x // CELL_SIZE) - target[0])
-        dy = abs(int(self.current_location.y // CELL_SIZE) - target[1])
-        return dx + dy
+        gx, gy = self.get_grid_coordinates()
+        tx, ty = target
+        return abs(gx - tx) + abs(gy, ty)
 
-    def interact_with(self, interaction=""):
-        if interaction == "eat":
-            return self.energy_value
+    # Indicate what happens when a dob interacts with the object, by default it returns an energy value
+    def interact_with(self):
+        return self.energy_value
     
-    def within_bounds(self, destination, grid=False):
-        if grid:
-            x, y = destination
-            return 0 <= x < MAX_X // CELL_SIZE and 0 <= y < MAX_Y // CELL_SIZE
-        return 0 <= destination.x < MAX_X and 0 <= destination.y < MAX_Y
+    # Check to see if the destination is within bounds, accepts (grid_x, grid_y)
+    def within_bounds(self, destination):
+        x, y = destination
+        return 0 <= x < to_grid(MAX_X) and 0 <= y < to_grid(MAX_Y)
     
 class Food(Simulation_Object):
     _id = 0
@@ -51,11 +51,11 @@ class Food(Simulation_Object):
         self.regrowth = 0
         self.energy_value = 250
 
-        self.spawn()
+        self.place()
     
     def exist(self, surface):
         if not self.consumed:
-            pygame.draw.circle(surface, "red", self.current_location, CELL_SIZE/2)
+            pygame.draw.circle(surface, "red", self.current_loc, CELL_SIZE/2)
 
         else:
             if self.regrowth == FOOD_REGROWTH_RATE:
@@ -71,50 +71,47 @@ class Food(Simulation_Object):
 class Water(Simulation_Object):
     _id = 0
 
-    def __init__(self, from_cascade=False, cascade_chance=1, starting_coords=None):
+    def __init__(self, source=False, cascade_chance=1, starting_coords=None):
         super().__init__()
         self.id = Water._id
         Water._id += 1
+
+        ACTIVE_WATER.append(self)
 
         self.object_tag = WATER
         self.energy_value = 25
         self.chance_to_cascade = cascade_chance
 
-        if not from_cascade:
-            self.spawn(starting_coords)
+        if source:
+            self.place(starting_coords)
             self.cascade()
-    
+
+    # Water is a Rect so it requires it's pixel-position to be adjusted by half a grid
     def exist(self, surface):
-        pixel_position = self.current_location - pygame.Vector2(CELL_SIZE // 2, CELL_SIZE // 2)
-        water_source = pygame.Rect(pixel_position, (CELL_SIZE, CELL_SIZE))
-        pygame.draw.rect(surface, "#47CBED", water_source)
+        offset_position = self.current_loc - pygame.Vector2(CELL_SIZE // 2, CELL_SIZE // 2)
+        position = pygame.Rect(offset_position, (CELL_SIZE, CELL_SIZE))
+        pygame.draw.rect(surface, "#47CBED", position)
 
-    def cascade(self, override=False):
-        directions = [
-            (1, 0),
-            (-1, 0),
-            (0, 1),
-            (0, -1)
-        ]
-
-        if random() <= self.chance_to_cascade or override:
+    # Water attempts to cascade to simulate ponds, rivers, etc.
+    # If water cascades, the water it spawns will also attempt to cascade
+    def cascade(self):
+        directions = GRID_CARDINALS
+        
+        if random() <= self.chance_to_cascade:
             direction = choice(directions)
 
-            gx, gy = self.get_grid_coordinates()
-            print(f"Source at: {self.get_grid_coordinates()}")
+            gx, gy = self.get_grid()
             new_coords = (gx + direction[0], gy + direction[1])
 
-            if not self.within_bounds(new_coords, grid=True):
+            if not self.within_bounds(new_coords):
                 return
 
+            # If water exists, attempt to cascade again
             for obj in ACTIVE_WATER:
-                if obj.get_grid_coordinates() == new_coords:
-                    self.cascade(True)
+                if obj.get_grid() == new_coords:
+                    self.cascade()
                     return
 
-            water = Water(from_cascade=True, cascade_chance=self.chance_to_cascade - 0.02)
-            water.spawn(new_coords)
-            ACTIVE_WATER.append(water)
-            print(f"Water cascade started at {new_coords}!")
-
+            water = Water(, cascade_chance=self.chance_to_cascade - 0.02)
+            water.place(new_coords)
             water.cascade()

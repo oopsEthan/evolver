@@ -1,5 +1,5 @@
 import json
-from config import ACTIVE_DOBS, DOB, STARTING_DOB_POPULATION
+from utilities.config import ACTIVE_DOBS, DOB, STARTING_DOB_POPULATION
 
 class Data_Collector():
     def __init__(self):

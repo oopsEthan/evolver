@@ -1,6 +1,6 @@
 import pygame
 from random import choice
-from config import *
+from utilities.config import *
 from dobs.brain import Brain
 from world_objects import Simulation_Object
 
@@ -18,8 +18,8 @@ class Dob(Simulation_Object):
     def exist(self, surface):
         pygame.draw.circle(surface, DOB_TRAITS[self.sex], self.current_location, CELL_SIZE/2)
 
-        if self.sex_cd > 0:
-            self.sex_cd -= 0.5
+        if self.mating_cooldown > 0:
+            self.mating_cooldown -= 0.5
 
         self.brain.age_memories()
         self.see()
@@ -33,16 +33,7 @@ class Dob(Simulation_Object):
     # Moves dob to target's grid coordinates, if None, move randomly
     def move_to(self, target=None):
         if not target:
-            directions = [
-                pygame.Vector2(CELL_SIZE, 0),
-                pygame.Vector2(-CELL_SIZE, 0),
-                pygame.Vector2(0, CELL_SIZE),
-                pygame.Vector2(0, -CELL_SIZE),
-                pygame.Vector2(CELL_SIZE, -CELL_SIZE),
-                pygame.Vector2(-CELL_SIZE, -CELL_SIZE),
-                pygame.Vector2(-CELL_SIZE, CELL_SIZE),
-                pygame.Vector2(CELL_SIZE, CELL_SIZE)
-            ]
+            directions = GRID_CARDINALS + GRID_DIAGONALS
 
             step = choice(directions)
             destination = self.current_location + step
@@ -68,12 +59,12 @@ class Dob(Simulation_Object):
     # Defines a variety of actions based on the object (target) being interacted with
     def interact(self, target):
         if target.object_tag == FOOD:
-            self.current_calories += target.interact_with("eat")
+            self.current_calories += target.interact_with()
         
         elif target.object_tag == WATER:
             self.brain.memorize(LONG_TERM, target)
             self.thirst_threshhold = 0.4
-            self.current_hydration += target.interact_with("eat")
+            self.current_hydration += target.interact_with()
 
         elif target.object_tag == DOB:
             self.mate(target)
@@ -110,27 +101,16 @@ class Dob(Simulation_Object):
             dob = Dob(mom=female, dad=male)
             dob.place(female.get_grid_coordinates())
 
-            female.sex_cd = SEX_COOLDOWN
+            female.mating_cooldown = MATING_COOLDOWN
             female.expend_energy(5)
             female.offspring += 1
 
-            male.sex_cd = SEX_COOLDOWN
+            male.mating_cooldown = MATING_COOLDOWN
             male.expend_energy(3)
 
             return
         
-        self.sex_cd += SEX_COOLDOWN/2
-
-    # Checks a req and returns based on dob's current needs and threshhold
-    def check(self, req):
-        if req == FOOD:
-            return self.current_calories < self.dna["max_calories"] * self.hunger_threshhold
-        elif req == WATER:
-            return self.current_hydration < self.dna["max_hydration"] * self.thirst_threshhold
-        elif req == REPRODUCTION and self.age >= MATING_AGE:
-            return self.current_calories > self.dna["max_calories"] * 0.6 and self.current_hydration > self.dna["max_hydration"] * 0.6
-        
-        return False
+        self.mating_cooldown += MATING_COOLDOWN/2
     
     # Defines a dob's cause of death and sets them to dead - RIP
     def die(self):
@@ -170,7 +150,7 @@ class Dob(Simulation_Object):
         self.brain.dob = self
         self.alive = True
         self.sex = sex
-        self.sex_cd = SEX_COOLDOWN
+        self.mating_cooldown = MATING_COOLDOWN
         self.age = 0
         self.offspring = 0
         self.cause_of_death = ""
@@ -198,7 +178,7 @@ class Dob(Simulation_Object):
 
     # Checks ability to mate
     def can_mate(self) -> bool:
-        return (self.sex_cd == 0 and
+        return (self.mating_cooldown == 0 and
                 self.age >= MATING_AGE and
                 self.current_calories > self.dna["max_calories"] * self.hunger_threshhold and
                 self.current_hydration > self.dna["max_hydration"] * self.thirst_threshhold)

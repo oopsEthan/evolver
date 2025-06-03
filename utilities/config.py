@@ -1,9 +1,3 @@
-# UI Settings
-FPS = 60
-CELL_SIZE = 20
-MAX_X = 720
-MAX_Y = 720
-
 # Food Constants
 ACTIVE_FOOD = []
 FOOD = "food"
@@ -40,8 +34,30 @@ DOB_TRAITS = {
 }
 
 # Age
-SEX_COOLDOWN = 10
+MATING_COOLDOWN = 10
 MATING_AGE = 50
 
 # Data Settings
 SNAPSHOT_FREQUENCY = 20
+
+## UI Settings
+# Settings are pixel
+FPS = 60
+CELL_SIZE = 20
+MAX_X = 720
+MAX_Y = 720
+
+# General Constants
+GRID_CARDINALS = [
+    (1, 0),
+    (-1, 0),
+    (0, 1),
+    (0, -1),
+]
+
+GRID_DIAGONALS = [
+    (1, -1),
+    (-1, -1),
+    (-1, 1),
+    (1, 1)
+]

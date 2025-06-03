@@ -1,8 +1,8 @@
 import pygame
-from config import *
+from utilities.config import *
 from dobs.dobs import Dob
 from world_objects import Food, Water
-from random import choice, uniform
+from random import uniform
 from data.data_collector import Data_Collector
 
 class Simulator():
@@ -28,7 +28,10 @@ class Simulator():
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.is_running = False
-            
+
+            for water in ACTIVE_WATER:
+                water.exist(self.screen)
+
             for dob in ACTIVE_DOBS:
                 dob.exist(self.screen)
                 if dob.alive == False:
@@ -37,9 +40,6 @@ class Simulator():
             
             for food in ACTIVE_FOOD:
                 food.exist(self.screen)
-
-            for water in ACTIVE_WATER:
-                water.exist(self.screen)
 
             # Debug
             self.debug_draw_grid(False) # Draws grid if 'True'
@@ -97,8 +97,7 @@ class Simulator():
             if any(w.get_grid_coordinates() == (x, y) for w in ACTIVE_WATER):
                 continue
 
-            water = Water(starting_coords=(x,y))
-            ACTIVE_WATER.append(water)
+            water = Water(source=True, starting_coords=(x,y))
 
     # Debugging Functions
     def debug_draw_grid(self, draw):
