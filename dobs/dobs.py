@@ -17,15 +17,15 @@ class Dob(Simulation_Object):
     ## Main functions
     # Called each tick to handle behavior, cooldowns, aging, and rendering
     def exist(self, surface):
+        pygame.draw.circle(surface, self.color, self.current_loc, CELL_SIZE/2)
         self.brain.age_memories()
         self.see()
         self.brain.think()
 
         if self.age >= DOB_DEATH_AGE:
             self.die()
-        
+
         self.increment()
-        pygame.draw.circle(surface, self.color, self.current_loc, CELL_SIZE/2)
 
     # Moves dob to target's grid coordinates, if target=None, move randomly
     def move_towards(self, target=None):
@@ -50,7 +50,7 @@ class Dob(Simulation_Object):
         destination = (dest_x, dest_y)
 
         if self.within_bounds(destination):
-            super().move_to(destination)
+            self.move_to(destination)
             self.expend_energy(1)
 
     # Defines a variety of actions based on the object (target) being interacted with
@@ -65,7 +65,7 @@ class Dob(Simulation_Object):
 
         elif target.tag == DOB:
             self.mate(target)
-
+        
         return True
     
     # Calculates all visible tiles within sight distance and then passes visible tiles to memory
@@ -111,7 +111,7 @@ class Dob(Simulation_Object):
     
     # Defines a dob's cause of death and sets them to dead - RIP
     def die(self):
-        if self.age >= DOB_TRAITS["DEATH_AGE"]:
+        if self.age >= DOB_DEATH_AGE:
             self.cause_of_death = "age"
 
         elif self.current_calories <= 0:
@@ -124,13 +124,11 @@ class Dob(Simulation_Object):
 
     ## Data functions
     # Collects dob's information and returns it
-    def collect_package(self):
-        package = {}
-
-        if self.cause_of_death:
-            package["cause_of_death"] = self.cause_of_death
-        
-        return package
+    def collect_package(self) -> dict:
+        return {
+            "tag": self.tag,
+            "cause_of_death": self.cause_of_death
+        }
     
     ## Helper functions
     # Defines all of the dob's starting 'biological' traits

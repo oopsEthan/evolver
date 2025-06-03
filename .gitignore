@@ -175,4 +175,4 @@ cython_debug/
 
 # Unneeded
 .vscode
-simulation_results.json
+data/simulation_snapshots.json

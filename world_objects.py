@@ -9,42 +9,45 @@ class Simulation_Object:
         self.move_to(starting_coords)
         self.energy_value = 0
 
-    # Moves a simulation object to loc (x,y) on the grid, if no loc provided, random
-    def move_to(self, loc=None):
+    def move_to(self, loc: tuple=None) -> None:
+        """Moves a simulation object to loc (x,y) on the grid, if no loc provided, random"""
         if not loc:
-            spawn_x = to_pixel(randrange(0, MAX_X, CELL_SIZE))
-            spawn_y = to_pixel(randrange(0, MAX_Y, CELL_SIZE))
-
-        if loc:
-            spawn_x, spawn_y = to_pixel(loc)
+            loc = randrange(0, MAX_GRID_X), randrange(0, MAX_GRID_Y)
         
-        self.current_loc = pygame.Vector2(spawn_x, spawn_y)
+        self.current_loc = to_pixel(loc)
 
-    # Returns the grid coordinates (x,y) of the object
-    def get_grid(self):
+    def get_grid(self) -> tuple:
+        """Returns the grid coordinates (x,y) of the object"""
         return to_grid(self.current_loc)
     
-    # Gets the grid distance between object and the target
-    def get_grid_distance_between(self, target):
+    def get_grid_distance_to(self, target: 'Simulation_Object') -> int:
+        """Gets the grid distance between object and the target"""
         gx, gy = self.get_grid()
-        tx, ty = target
+        tx, ty = target.get_grid()
         return abs(gx - tx) + abs(gy - ty)
+
+    def is_adjacent_to(self, target: 'Simulation_Object') -> bool:
+        """Checks if the target is adjacent to the object"""
+        tx, ty = target.get_grid()
+        dx, dy = self.get_grid()
+        return abs(tx - dx) + abs(ty - dy) == 1
 
     # Indicate what happens when a dob interacts with the object, by default it returns an energy value
     def interact_with(self):
         return self.energy_value
     
-    # Check to see if the destination is within bounds, accepts grid coords
-    def within_bounds(self, destination):
+    def within_bounds(self, destination: tuple) -> bool:
+        """Check to see if the destination is within bounds, accepts grid coords"""
         x, y = destination
-        return 0 <= x < to_grid(MAX_X) and 0 <= y < to_grid(MAX_Y)
+        return 0 <= x < MAX_GRID_X and 0 <= y < MAX_GRID_Y
 
-    # Registers the object to the simulation
-    def register(self, object_class, object_tag, db):
+    def register(self, object_class: object, object_tag: str, db: list) -> None:
+        """Registers the object to the simulation"""
         self.id = object_class._id
         object_class._id += 1
 
         self.tag = object_tag
+        self.db = db
         db.append(self)
 
 # Food is food that you eat food eat food
@@ -80,8 +83,9 @@ class Food(Simulation_Object):
 class Water(Simulation_Object):
     _id = 0
 
-    def __init__(self, chance_to_cascade=1):
+    def __init__(self, starting_coords, chance_to_cascade=1):
         super().__init__()
+        self.move_to(starting_coords)
         self.register(Water, WATER, ACTIVE_WATER)
 
         self.energy_value = WATER_VALUE

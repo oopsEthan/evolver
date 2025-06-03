@@ -2,7 +2,7 @@ import pygame
 from utilities.config import *
 from utilities.utils import to_grid
 from dobs.dobs import Dob
-from world_objects import Food, Water
+from world_objects import *
 from random import uniform
 from data.data_collector import Data_Collector
 
@@ -17,7 +17,7 @@ class Simulator():
 
         self.data_collector = Data_Collector()
     
-    def run(self):
+    def run(self) -> None:
         self.initialize_sim()
 
         is_running = True
@@ -28,55 +28,42 @@ class Simulator():
                 if event.type == pygame.QUIT:
                     is_running = False
 
-            for water in ACTIVE_WATER:
-                water.exist(self.screen)
+            # -- Object-handling --
+            self.tick_objects(ACTIVE_WATER)
+            self.tick_objects(ACTIVE_FOOD)
 
-            for dob in ACTIVE_DOBS[:]:
-                dob.exist(self.screen)
-                if dob.alive == False:
-                    self.data_collector.report(DOB, dob.collect_package())
-                    ACTIVE_DOBS.remove(dob)
-            
-            for food in ACTIVE_FOOD:
-                food.exist(self.screen)
+            self.tick_dobs()
 
-            # Debugging
+            # -- Debugging --
             self.debug_draw_grid(False) # Draws grid if 'True'
 
-            # <- Drawing done before here
+            # -- End of Drawing --
             pygame.display.flip()
 
-            self.clock.tick(FPS)
-
             if len(ACTIVE_DOBS) == 0:
+                print("All dobs have died! Ending simulation...")
                 break
 
             if self.tick % SNAPSHOT_FREQUENCY == 0:
                 self.data_collector.generate_snapshot()
             
-            # <- End of tick
+            # -- End of Tick --
             self.tick += 1
+            self.clock.tick(TPS)
 
-        # <- Once simulation ends
+        # -- Post-simulation --
         self.data_collector.generate_snapshot()
-        self.data_collector.save_to_data_file()
+        self.data_collector.save_snapshots_to_file()
         pygame.quit()
-    
-    # Populates dobs, ensuring an even split of sexes
-    def populate_dobs(self):
-        i = 0
-        for _ in range(STARTING_DOB_POPULATION):
-                sex = "F" if i % 2 == 0 else "M"
-                dob = Dob(sex)
-                i += 1
-    
-    # Places food randomly
-    def place_food(self):
-        for _ in range(STARTING_FOOD_COUNT):
-            Food()
-    
-    # Places water sources
-    def place_water_sources(self):
+
+    # Initializes the simulation by creating all objects
+    def initialize_sim(self) -> None:
+        self.place_water_sources()
+        self.place_food()
+        self.populate_dobs()
+
+    # Places water sources uniformly
+    def place_water_sources(self) -> None:
         for _ in range(STARTING_WATER_SOURCES):
             x = int(uniform(0, MAX_GRID_X - 1))
             y = int(uniform(0, MAX_GRID_Y - 1))
@@ -84,17 +71,38 @@ class Simulator():
             if any(w.get_grid() == (x, y) for w in ACTIVE_WATER):
                 continue
 
-            Water(starting_coords=(x,y))
+            Water(starting_coords=(x, y))
 
-    # Initializes the simulation by creating all objects
-    def initialize_sim(self):
-        self.place_water_sources()
-        self.place_food()
-        self.populate_dobs()
-        
-    ## DEBUGGING
+    # Places food randomly
+    def place_food(self) -> None:
+        for _ in range(STARTING_FOOD_COUNT):
+            Food()
+
+    # Populates dobs, ensuring an even split of sexes
+    def populate_dobs(self) -> None:
+        i = 0
+        for _ in range(STARTING_DOB_POPULATION):
+                sex = "F" if i % 2 == 0 else "M"
+                Dob(sex)
+                i += 1
+    
+    ## Helper functions
+    # Processes non-dob actions per call
+    def tick_objects(self, actives: list[Simulation_Object]) -> None:
+        for obj in actives:
+            obj.exist(self.screen)
+
+    # Processes dob actions per call
+    def tick_dobs(self) -> None:
+        for dob in ACTIVE_DOBS[:]:
+            dob.exist(self.screen)
+            if dob.alive == False:
+                self.data_collector.process_package(dob.collect_package())
+                ACTIVE_DOBS.remove(dob)
+    
+    ## Debug functions
     # When True, draws grid on screen
-    def debug_draw_grid(self, draw):
+    def debug_draw_grid(self, draw) -> None:
         if draw:
             font = pygame.font.SysFont(None, 18)
             grid_color = (40, 40, 40)
@@ -112,6 +120,5 @@ class Simulator():
                 label = font.render(str(grid_index), True, label_color)
                 self.screen.blit(label, (2, y + 2))
     
-
 simulator = Simulator()
 simulator.run()

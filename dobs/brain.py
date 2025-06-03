@@ -20,18 +20,15 @@ class Brain():
         target = self.evaluate()
 
         if target:
-            tx, ty = target.get_grid_coordinates()
-            dx, dy = self.dob.get_grid_coordinates()
-
-            if abs(tx - dx) + abs(ty - dy) == 1:
+            if self.dob.is_adjacent_to(target):
                 self.dob.interact(target)
                 return
-            
-            self.dob.move_to(target)
+
+            self.dob.move_towards(target)
             return
 
         else:
-            self.dob.move_to()
+            self.dob.move_towards()
 
     # Evaluates what a dob needs most at any given time
     def evaluate(self):
@@ -42,9 +39,9 @@ class Brain():
             return self.get_closest_target(FOOD)
 
         elif self.dob.can_mate():
-            matches = [obj for obj, _ in self.memory[SHORT_TERM] if obj.object_tag == DOB and obj.sex != self.dob.sex]
+            matches = [obj for obj, _ in self.memory[SHORT_TERM] if obj.tag == DOB and obj.sex != self.dob.sex]
             if matches:
-                return min(matches, key=lambda m: self.dob.get_grid_distance_between(m.get_grid_coordinates()))
+                return min(matches, key=lambda m: self.dob.get_grid_distance_to(m))
 
         return None
     
@@ -60,14 +57,14 @@ class Brain():
     def get_closest_target(self, target):
         matches = self.check_memories(target)
         if matches:
-            return min(matches, key=lambda m: self.dob.get_grid_distance_between(m.get_grid_coordinates()))
+            return min(matches, key=lambda m: self.dob.get_grid_distance_to(m))
         
         return None
 
     # Checks memories for target, short-term is prioritized
     def check_memories(self, target):
-        short = [o for o, _ in self.memory[SHORT_TERM] if o.object_tag == target]
-        long = [o for o, _ in self.memory[LONG_TERM] if o.object_tag == target]
+        short = [o for o, _ in self.memory[SHORT_TERM] if o.tag == target]
+        long = [o for o, _ in self.memory[LONG_TERM] if o.tag == target]
         
         return short + long
 

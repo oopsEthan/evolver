@@ -53,7 +53,7 @@ SNAPSHOT_FREQUENCY = 20
 
 # ----- UTILITY -----
 # UI Settings
-FPS = 60
+TPS = 10
 CELL_SIZE = 20
 MAX_X = 720
 MAX_Y = 720
