@@ -17,13 +17,10 @@ def within_bounds(coords: tuple[int, int]):
     x, y = coords
     return 0 <= x < MAX_GRID_X and 0 <= y < MAX_GRID_Y
 
-def tile_available(coords: tuple[int, int], ignore_tags: list[str]=None, allow_obj: object=None) -> bool:
-    """Checks if a tile is empty/available and within bounds"""
-    if not ignore_tags:
-        ignore_tags = []
-
+def tile_occupied(coords: tuple[int, int]) -> bool:
+    """Checks if a tile is occupied, returning False if so, True if it is"""
     occupants = GRID_OCCUPANCY.get(coords, [])
-    return all(obj.tag in ignore_tags or obj == allow_obj for obj in occupants)
+    return len(occupants) > 0
 
 def change_tile_occupancy(obj, new_coords: tuple[int, int]):
     """Updates the objects coords in the memory for searching"""
@@ -41,12 +38,40 @@ def change_tile_occupancy(obj, new_coords: tuple[int, int]):
 
 # Path finding
 
-def get_surrounding_tiles(grid_coords: tuple[int, int]) -> list:
-    adjacents = []
+def get_adjacent_tiles(grid_coords: tuple[int, int],
+                       diagonals: bool=True,
+                       cardinals: bool=True,
+                       avoid_occupied: bool=False) -> list:
+    """
+    Returns a list of adjacent (x, y) tile coordinates around a given grid position.
 
-    for coord in GRID_DIAGONALS + GRID_CARDINALS:
-        x = grid_coords[0] + coord[0]
-        y = grid_coords[1] + coord[1]
-        adjacents.append((x, y))
+    Parameters:
+    - grid_coords: The (x, y) grid position to check around.
+    - diagonals: If True, includes diagonal neighbors.
+    - cardinals: If True, includes cardinal neighbors.
+    - avoid_occupied: If True, excludes tiles that are currently occupied.
+
+    Returns:
+    - List of (x, y) tuples representing adjacent tiles.
+    """
+
+    adjacents = []
+    positions_to_check = []
+
+    if diagonals:
+        positions_to_check += GRID_DIAGONALS
+
+    if cardinals:
+        positions_to_check += GRID_CARDINALS
+    
+    for coord in positions_to_check:
+        pos = (grid_coords[0] + coord[0], grid_coords[1] + coord[1])
+
+        if not within_bounds(pos):
+            continue
+        if avoid_occupied and tile_occupied(pos):
+            continue
+
+        adjacents.append(pos)
     
     return adjacents

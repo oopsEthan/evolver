@@ -14,7 +14,7 @@ class Simulation_Object:
         if not loc:
             while True:
                 loc = randrange(0, MAX_GRID_X), randrange(0, MAX_GRID_Y)
-                if tile_available(loc):
+                if not tile_occupied(loc):
                     break
         
         self.current_loc = to_pixel(loc)
@@ -110,9 +110,9 @@ class Water(Simulation_Object):
             grid_x, grid_y = self.get_grid()
             new_coords = (grid_x + dx, grid_y + dy)
 
-            if not tile_available(new_coords) and within_bounds(new_coords):
+            if tile_occupied(new_coords) and within_bounds(new_coords):
                 continue
 
-            if tile_available(new_coords, ignore_tags=[DOB, FOOD]):
+            if not tile_occupied(new_coords):
                 Water(starting_coords=new_coords, chance_to_cascade=chance - CASCADE_CHANCE_REDUCTION)
                 break

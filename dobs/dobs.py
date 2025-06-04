@@ -1,7 +1,7 @@
 import pygame
 from random import choice
 from utilities.config import *
-from utilities.utils import *
+from utilities.utils import tile_occupied, within_bounds, get_adjacent_tiles
 from dobs.brain import Brain
 from world_objects import Simulation_Object
 
@@ -41,7 +41,7 @@ class Dob(Simulation_Object):
         print(f"Dob #{self.id}'s current path is {len(self.current_path)} units long.")
         next_step = self.current_path[0]
 
-        if tile_available(next_step):
+        if not tile_occupied(next_step):
             self.move_to(next_step)
             self.current_path.pop(0)
             return True
@@ -53,30 +53,40 @@ class Dob(Simulation_Object):
     # Dobs use a BFS algorithm to find the best possible path (think: wave)
 
     # Current issue is with end position, if it lands on an object that is invalid, the system crashes!
-    # This is possibly due to the system checking for tile_available(end_pos), and then it returns false
+    # This is possibly due to the system checking for tile_occupied(end_pos), and then it returns false
     # and the whole system doesn't understand what to do next.
     def find_path(self, start_pos: tuple[int, int], end_pos: tuple[int, int]) -> list:
         print("Starting pathfinding...")
         visited = set([start_pos])
         queue = [(start_pos, [])]
 
+        if tile_occupied(end_pos):
+            end_pos = self.find_available_adjacent(end_pos)
+
         while queue:
             current_pos, path = queue.pop(0)
             if current_pos == end_pos:
-                # if not tile_available(end_pos):
+                # if not tile_occupied(end_pos):
                 #     path.remove(end_pos) # bad idea?
                 return path
 
-            for neighbor in get_surrounding_tiles(current_pos):
-                if neighbor not in visited and tile_available(neighbor) and within_bounds(neighbor):
+            for neighbor in get_adjacent_tiles(current_pos):
+                if neighbor not in visited and not tile_occupied(neighbor) and within_bounds(neighbor):
                     visited.add(neighbor)
                     queue.append((neighbor, path + [neighbor]))
 
-        if not tile_available(end_pos):
+        if tile_occupied(end_pos):
             print(f"[Dob#{self.id}] Target tile {end_pos} is occupied — target likely sitting there.")
             print("Occupants:", GRID_OCCUPANCY.get(end_pos, []))
 
         return []
+
+    def find_available_adjacent(self, coords):
+        adjacents = get_adjacent_tiles(coords, diagonals=False, avoid_occupied=True)
+        if adjacents == []:
+            print("Pathfinding to adjacents failed, surrounded tile?")
+            
+        return choice(adjacents)
 
     # Defines a variety of actions based on the object (target) being interacted with
     def interact(self, target):
@@ -225,7 +235,7 @@ class Dob(Simulation_Object):
     
     # Returns a random tile within vision
     def get_random_tile(self) -> tuple[int, int]:
-        tile_options = [tile for tile in self.tiles_in_vision if tile_available(tile)]
+        tile_options = [tile for tile in self.tiles_in_vision if not tile_occupied(tile)]
         return choice(tile_options)
     
     # Memorizes any object in sight to short-term memory
