@@ -20,8 +20,6 @@ class Dob(Simulation_Object):
     # Called each tick to handle behavior, cooldowns, aging, and rendering
     def exist(self, surface):
         pygame.draw.circle(surface, self.color, self.current_loc, self.size)
-
-        return
         self.see()
         self.brain.think()
 
@@ -29,12 +27,18 @@ class Dob(Simulation_Object):
 
     # Moves dob to target's grid coordinates, if target=None, move randomly
     def move_towards(self, target=None) -> bool:
-        if not target:
+        if self.current_path == [] and not target:
             self.current_path = self.find_path(self.get_grid(), self.get_random_tile())
 
-        if not self.current_path and target:
+        if self.current_path == [] and target:
+            if self.is_adjacent_to(target):
+                return
             self.current_path = self.find_path(self.get_grid(), target.get_grid())
         
+        if len(self.current_path) == 0:
+            return
+
+        print(f"Dob #{self.id}'s current path is {len(self.current_path)} units long.")
         next_step = self.current_path[0]
 
         if tile_available(next_step):
@@ -47,19 +51,30 @@ class Dob(Simulation_Object):
             return False
     
     # Dobs use a BFS algorithm to find the best possible path (think: wave)
+
+    # Current issue is with end position, if it lands on an object that is invalid, the system crashes!
+    # This is possibly due to the system checking for tile_available(end_pos), and then it returns false
+    # and the whole system doesn't understand what to do next.
     def find_path(self, start_pos: tuple[int, int], end_pos: tuple[int, int]) -> list:
+        print("Starting pathfinding...")
         visited = set([start_pos])
         queue = [(start_pos, [])]
 
         while queue:
             current_pos, path = queue.pop(0)
             if current_pos == end_pos:
+                # if not tile_available(end_pos):
+                #     path.remove(end_pos) # bad idea?
                 return path
 
             for neighbor in get_surrounding_tiles(current_pos):
-                if neighbor not in visited and tile_available(neighbor):
+                if neighbor not in visited and tile_available(neighbor) and within_bounds(neighbor):
                     visited.add(neighbor)
                     queue.append((neighbor, path + [neighbor]))
+
+        if not tile_available(end_pos):
+            print(f"[Dob#{self.id}] Target tile {end_pos} is occupied — target likely sitting there.")
+            print("Occupants:", GRID_OCCUPANCY.get(end_pos, []))
 
         return []
 
@@ -210,13 +225,16 @@ class Dob(Simulation_Object):
     
     # Returns a random tile within vision
     def get_random_tile(self) -> tuple[int, int]:
-        return choice(self.tiles_in_vision)
+        tile_options = [tile for tile in self.tiles_in_vision if tile_available(tile)]
+        return choice(tile_options)
     
     # Memorizes any object in sight to short-term memory
     def memorize_interests(self, coords):
         for coord in coords:
             for obj in GRID_OCCUPANCY.get(coord, []):
                 if obj is self:
+                    continue
+                if obj.tag == DOB and not obj.can_mate():
                     continue
                 self.brain.memorize(SHORT_TERM, obj)
 

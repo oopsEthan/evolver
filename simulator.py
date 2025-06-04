@@ -59,11 +59,8 @@ class Simulator():
     # Initializes the simulation by creating all objects
     def initialize_sim(self) -> None:
         self.place_water_sources()
-        print(f"Water tiles spawned: {len(ACTIVE_WATER)}")
         self.place_food()
         self.populate_dobs()
-
-        print("Initialization of simulation complete!")
 
     # Places water sources uniformly
     def place_water_sources(self) -> None:
@@ -131,6 +128,7 @@ class Simulator():
             end = obj.current_path[i+1]
             pygame.draw.line(self.screen, "black", to_pixel(start), to_pixel(end))
             i += 1
-    
+
+print("Hello world!")
 simulator = Simulator()
 simulator.run()

@@ -110,7 +110,7 @@ class Water(Simulation_Object):
             grid_x, grid_y = self.get_grid()
             new_coords = (grid_x + dx, grid_y + dy)
 
-            if not within_bounds(new_coords):
+            if not tile_available(new_coords) and within_bounds(new_coords):
                 continue
 
             if tile_available(new_coords, ignore_tags=[DOB, FOOD]):
