@@ -36,7 +36,7 @@ class Data_Collector():
 
         self.metrics["total"] = total
         self.metrics["alive"] = len(ACTIVE_DOBS)
-        self.metrics["births"] = births
+        self.metrics["births"] += births
         self.metrics["death"] = self.get_death_metrics()
 
         snapshot = copy.deepcopy(self.metrics)

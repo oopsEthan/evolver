@@ -29,13 +29,12 @@ class Simulator():
                     is_running = False
 
             # -- Object-handling --
+
             self.tick_objects(ACTIVE_WATER)
             self.tick_objects(ACTIVE_FOOD)
-
             self.tick_dobs()
 
             # -- Debugging --
-            self.debug_draw_grid(False) # Draws grid if 'True'
 
             # -- End of Drawing --
             pygame.display.flip()
@@ -48,6 +47,7 @@ class Simulator():
                 self.data_collector.generate_snapshot()
             
             # -- End of Tick --
+            print("tick")
             self.tick += 1
             self.clock.tick(TPS)
 
@@ -59,8 +59,11 @@ class Simulator():
     # Initializes the simulation by creating all objects
     def initialize_sim(self) -> None:
         self.place_water_sources()
+        print(f"Water tiles spawned: {len(ACTIVE_WATER)}")
         self.place_food()
         self.populate_dobs()
+
+        print("Initialization of simulation complete!")
 
     # Places water sources uniformly
     def place_water_sources(self) -> None:
@@ -96,29 +99,38 @@ class Simulator():
     def tick_dobs(self) -> None:
         for dob in ACTIVE_DOBS[:]:
             dob.exist(self.screen)
+            self._draw_path_DEBUG(dob)
             if dob.alive == False:
                 self.data_collector.process_package(dob.collect_package())
                 ACTIVE_DOBS.remove(dob)
     
     ## Debug functions
     # When True, draws grid on screen
-    def debug_draw_grid(self, draw) -> None:
-        if draw:
-            font = pygame.font.SysFont(None, 18)
-            grid_color = (40, 40, 40)
-            label_color = (0, 0, 0)
+    def _draw_grid_DEBUG(self) -> None:
+        font = pygame.font.SysFont(None, 18)
+        grid_color = (40, 40, 40)
+        label_color = (0, 0, 0)
 
-            for x in range(0, MAX_X, CELL_SIZE):
-                pygame.draw.line(self.screen, grid_color, (x, 0), (x, MAX_Y))
-                grid_index = x // CELL_SIZE
-                label = font.render(str(grid_index), True, label_color)
-                self.screen.blit(label, (x + 2, 2))
+        for x in range(0, MAX_X, TILE_SIZE):
+            pygame.draw.line(self.screen, grid_color, (x, 0), (x, MAX_Y))
+            grid_index = x // TILE_SIZE
+            label = font.render(str(grid_index), True, label_color)
+            self.screen.blit(label, (x + 2, 2))
 
-            for y in range(0, MAX_Y, CELL_SIZE):
-                pygame.draw.line(self.screen, grid_color, (0, y), (MAX_X, y))
-                grid_index = y // CELL_SIZE
-                label = font.render(str(grid_index), True, label_color)
-                self.screen.blit(label, (2, y + 2))
+        for y in range(0, MAX_Y, TILE_SIZE):
+            pygame.draw.line(self.screen, grid_color, (0, y), (MAX_X, y))
+            grid_index = y // TILE_SIZE
+            label = font.render(str(grid_index), True, label_color)
+            self.screen.blit(label, (2, y + 2))
+    
+    def _draw_path_DEBUG(self, obj):
+        i = 0
+
+        while i < len(obj.current_path) - 1:
+            start = obj.current_path[i]
+            end = obj.current_path[i+1]
+            pygame.draw.line(self.screen, "black", to_pixel(start), to_pixel(end))
+            i += 1
     
 simulator = Simulator()
 simulator.run()

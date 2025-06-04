@@ -14,44 +14,54 @@ class Dob(Simulation_Object):
         self.generate_biology(sex, mom, dad)
         self.generate_needs()
 
+        self.current_path = []
+
     ## Main functions
     # Called each tick to handle behavior, cooldowns, aging, and rendering
     def exist(self, surface):
-        pygame.draw.circle(surface, self.color, self.current_loc, CELL_SIZE/2)
-        self.brain.age_memories()
+        pygame.draw.circle(surface, self.color, self.current_loc, self.size)
+
+        return
         self.see()
         self.brain.think()
-
-        if self.age >= DOB_DEATH_AGE:
-            self.die()
 
         self.increment()
 
     # Moves dob to target's grid coordinates, if target=None, move randomly
-    def move_towards(self, target=None):
-        current_x, current_y = self.get_grid()
+    def move_towards(self, target=None) -> bool:
+        if not target:
+            self.current_path = self.find_path(self.get_grid(), self.get_random_tile())
 
-        if target:
-            tx, ty = target.get_grid()
-            dx = tx - current_x
-            dy = ty - current_y
+        if not self.current_path and target:
+            self.current_path = self.find_path(self.get_grid(), target.get_grid())
+        
+        next_step = self.current_path[0]
 
-            if abs(dx) > abs(dy):
-                direction = EAST if dx > 0 else WEST
-            else:
-                direction = NORTH if dy > 0 else SOUTH
-
+        if tile_available(next_step):
+            self.move_to(next_step)
+            self.current_path.pop(0)
+            return True
+        
         else:
-            directions = GRID_CARDINALS + GRID_DIAGONALS
-            direction = choice(directions)
+            self.current_path = []
+            return False
+    
+    # Dobs use a BFS algorithm to find the best possible path (think: wave)
+    def find_path(self, start_pos: tuple[int, int], end_pos: tuple[int, int]) -> list:
+        visited = set([start_pos])
+        queue = [(start_pos, [])]
 
-        dest_x = current_x + direction[0]
-        dest_y = current_y + direction[1]
-        destination = (dest_x, dest_y)
+        while queue:
+            current_pos, path = queue.pop(0)
+            if current_pos == end_pos:
+                return path
 
-        if self.within_bounds(destination):
-            self.move_to(destination)
-            self.expend_energy(1)
+            for neighbor in get_surrounding_tiles(current_pos):
+                if neighbor not in visited and tile_available(neighbor):
+                    visited.add(neighbor)
+                    queue.append((neighbor, path + [neighbor]))
+
+        return []
 
     # Defines a variety of actions based on the object (target) being interacted with
     def interact(self, target):
@@ -72,14 +82,14 @@ class Dob(Simulation_Object):
     def see(self):
         grid_x, grid_y = self.get_grid()
         sight_distance = self.dna["sight"]
-        visible_tiles = []
+        self.tiles_in_vision = []
 
         for x in range(grid_x - sight_distance, grid_x + sight_distance + 1):
             for y in range(grid_y - sight_distance, grid_y + sight_distance + 1):
-                if 0 <= x < MAX_GRID_X and 0 <= y < MAX_GRID_Y:
-                    visible_tiles.append((x, y))
+                if within_bounds((x, y)):
+                    self.tiles_in_vision.append((x, y))
 
-        self.memorize_interests(visible_tiles)
+        self.memorize_interests(self.tiles_in_vision)
 
     # When dobs do something that requires energy, this is called to expend it
     def expend_energy(self, factor):
@@ -111,7 +121,7 @@ class Dob(Simulation_Object):
     
     # Defines a dob's cause of death and sets them to dead - RIP
     def die(self):
-        if self.age >= DOB_DEATH_AGE:
+        if self.age >= DEATH_AGE:
             self.cause_of_death = "age"
 
         elif self.current_calories <= 0:
@@ -130,23 +140,24 @@ class Dob(Simulation_Object):
             "cause_of_death": self.cause_of_death
         }
     
-    ## Helper functions
+    # region HELPER FUNCTIONS
+
     # Defines all of the dob's starting 'biological' traits
     def generate_biology(self, sex, mom, dad):
         # Brain
         self.brain = Brain()
         self.brain.dob = self
         self.alive = True
+        self.age = 0
 
-        # Sex
-        self.sex = sex
-        self.color = DOB_TRAITS[sex]
+        self.size = BABY_DOB_SIZE
+
+        self.update_sex_attributes(sex)
 
         self.mating_cooldown = MATING_COOLDOWN
-        self.age = 0
         self.offspring = 0
         self.cause_of_death = ""
-        
+
         self.dna = {
             "sight": 3,
             "max_calories": 1000,
@@ -160,6 +171,28 @@ class Dob(Simulation_Object):
         self.current_hydration = self.dna["max_hydration"]
         self.thirst_threshhold = 0.8
 
+    # Updates the age milestones
+    def update_age(self):
+        if self.age >= ADULT_AGE:
+            self.size = ADULT_DOB_SIZE
+        
+        elif self.age >= ELDER_AGE:
+            pass # for now
+
+        elif self.age >= DEATH_AGE:
+            self.die()
+            return
+
+    # Updates the sex attributes
+    def update_sex_attributes(self, sex):
+        self.sex = sex
+
+        if sex == "F":
+            self.color = FEMALE_COLOR
+
+        elif sex == "M":
+            self.color = MALE_COLOR
+
     # Checks hunger
     def is_hungry(self) -> bool:
         return self.current_calories < (self.dna["max_calories"] * self.hunger_threshhold)
@@ -171,24 +204,32 @@ class Dob(Simulation_Object):
     # Checks ability to mate
     def can_mate(self) -> bool:
         return (self.mating_cooldown == 0 and
-                self.age >= MATING_AGE and
+                self.age >= ADULT_AGE and
                 self.current_calories > self.dna["max_calories"] * self.hunger_threshhold and
                 self.current_hydration > self.dna["max_hydration"] * self.thirst_threshhold)
     
-    # Scans visible tiles and memorizes any food, water, or dobs found
-    def memorize_interests(self, tiles):
-        interests = [ACTIVE_WATER, ACTIVE_FOOD, ACTIVE_DOBS]
-
-        for interest in interests:
-            for obj in interest:
+    # Returns a random tile within vision
+    def get_random_tile(self) -> tuple[int, int]:
+        return choice(self.tiles_in_vision)
+    
+    # Memorizes any object in sight to short-term memory
+    def memorize_interests(self, coords):
+        for coord in coords:
+            for obj in GRID_OCCUPANCY.get(coord, []):
                 if obj is self:
                     continue
-                if obj.get_grid() in tiles:
-                    self.brain.memorize(SHORT_TERM, obj)
+                self.brain.memorize(SHORT_TERM, obj)
 
     # Increments counters
     def increment(self):
+        self.brain.age_memories()
+
         if self.mating_cooldown > 0:
                 self.mating_cooldown -= MATING_COOLDOWN_SPEED
 
         self.age += AGE_RATE
+
+        if self.age >= ADULT_AGE:
+            self.size = TILE_SIZE / 2
+
+    # endregion

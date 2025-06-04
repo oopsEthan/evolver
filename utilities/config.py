@@ -1,3 +1,13 @@
+# ----- UTILITY -----
+# UI Settings
+TPS = 10
+MAX_X = 720
+MAX_Y = 720
+TILE_SIZE = 20
+GRID_UNIT = (TILE_SIZE, TILE_SIZE)
+MAX_GRID_X = MAX_X // TILE_SIZE
+MAX_GRID_Y = MAX_Y // TILE_SIZE
+
 # ----- FOOD -----
 # Food Constants
 ACTIVE_FOOD = []
@@ -33,17 +43,22 @@ DOB_TRAITS = {
     # Memory ages -> affect how long dobs remember things
     "short": 5,
     "long": 500,
-    # Dob color changes based on sex
-    "F": "#006EFF",
-    "M": "#001EFF",
 }
 
 # Age
-AGE_RATE = 1
-DOB_DEATH_AGE = 200
+AGE_RATE = 1 # per tick
+BABY_DOB_SIZE = TILE_SIZE / 3
+ADULT_DOB_SIZE = TILE_SIZE / 2
+ADULT_AGE = 50
+ELDER_AGE = 150
+DEATH_AGE = 200
+
+# Colors
+FEMALE_COLOR = (100, 0, 255)
+
+MALE_COLOR = (0, 10, 255)
 
 # Mating
-MATING_AGE = 50
 MATING_COOLDOWN = 10
 MATING_COOLDOWN_SPEED = 0.5
 
@@ -51,16 +66,11 @@ MATING_COOLDOWN_SPEED = 0.5
 # Data Settings
 SNAPSHOT_FREQUENCY = 20
 
-# ----- UTILITY -----
-# UI Settings
-TPS = 10
-CELL_SIZE = 20
-MAX_X = 720
-MAX_Y = 720
-MAX_GRID_X = MAX_X // CELL_SIZE
-MAX_GRID_Y = MAX_Y // CELL_SIZE
+# ----- GENERAL -----
+ACTIVE_OBJECTS = [ACTIVE_DOBS, ACTIVE_FOOD, ACTIVE_WATER]
+GRID_OCCUPANCY = {}
 
-# General Constants
+# Cardinal directions on grid
 NORTH = (0, 1)
 SOUTH = (0, -1)
 EAST = (1, 0)
@@ -72,6 +82,7 @@ GRID_CARDINALS = [
     WEST
 ]
 
+# Diagonal directions on grid
 NORTHEAST = (1, 1)
 SOUTHEAST = (1, -1)
 SOUTHWEST = (-1, -1)
