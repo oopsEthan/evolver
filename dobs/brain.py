@@ -1,4 +1,5 @@
 from utilities.config import *
+from random import random
 
 class Brain():
     def __init__(self):
@@ -17,33 +18,33 @@ class Brain():
     
     # Function called to determine what a dob is going to do
     def think(self):
-        target = self.evaluate()
+        target, coords = self.evaluate()
 
         if target:
-            if self.dob.is_adjacent_to(target):
+            if self.dob.is_adjacent_to(coords):
                 self.dob.interact(target)
                 return
 
-            self.dob.move_towards(target)
+            self.dob.move_towards(coords)
             return
 
         else:
-            self.dob.move_towards()
+            if random() > 0.5:
+                self.dob.move_towards(self.dob.get_random_tile())
+            return
 
     # Evaluates what a dob needs most at any given time
     def evaluate(self):
         if self.dob.is_thirsty():
-            return self.get_closest_target(WATER)
+            return self.get_closest_water()
 
         elif self.dob.is_hungry():
-            return self.get_closest_target(FOOD)
+            return self.get_closest_food()
 
         elif self.dob.can_mate():
-            matches = [obj for obj, _ in self.memory[SHORT_TERM] if obj.tag == DOB and obj.sex != self.dob.sex]
-            if matches:
-                return min(matches, key=lambda m: self.dob.get_grid_distance_to(m))
+            return self.get_closest_dob()
 
-        return None
+        return None, None
     
     # Memorize an object to memory.
     def memorize(self, memory_type, object):
@@ -53,13 +54,39 @@ class Brain():
             self.memory[memory_type].append((object, DOB_TRAITS[memory_type]))
     
     ## Helper functions
-    # Get the closet target to the dob
-    def get_closest_target(self, target):
-        matches = self.check_memories(target)
+    # Get the closet food to the dob
+    def get_closest_food(self):
+        matches = self.check_memories(FOOD)
         if matches:
-            return min(matches, key=lambda m: self.dob.get_grid_distance_to(m))
+            target = min(matches, key=lambda m: self.dob.get_grid_distance_to(m.grid_pos))
+            return target, target.grid_pos
         
-        return None
+        return None, None
+
+    # Get the closet water to the dob
+    def get_closest_water(self):
+        matches = self.check_memories(WATER)
+
+        closest = None, None
+        closest_dist = float('inf')
+        
+        for target in matches:
+            for tile in target.water_positions:
+                dist = self.dob.get_grid_distance_to(tile)
+                if dist < closest_dist:
+                    closest_dist = dist
+                    closest = target, tile
+
+        return closest
+
+    # Get the closet opposite sex dob to the dob
+    def get_closest_dob(self):
+        matches = [obj for obj, _ in self.memory[SHORT_TERM] if obj.tag == DOB and obj.sex != self.dob.sex]
+        if matches:
+            target = min(matches, key=lambda m: self.dob.get_grid_distance_to(m.grid_pos))
+            return target, target.grid_pos
+        
+        return None, None
 
     # Checks memories for target, short-term is prioritized
     def check_memories(self, target):

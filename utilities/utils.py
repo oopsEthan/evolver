@@ -10,33 +10,38 @@ def to_pixel(coords: tuple[int, int]) -> pygame.Vector2:
     x, y = coords
     return pygame.Vector2(x * TILE_SIZE + TILE_SIZE // 2, y * TILE_SIZE + TILE_SIZE // 2)
 
-
-## Collision handling
-
-def within_bounds(coords: tuple[int, int]):
+def within_bounds(coords: tuple[int, int]) -> bool:
+    """Checks if a coordinate is inside the bounds of the simulation"""
     x, y = coords
     return 0 <= x < MAX_GRID_X and 0 <= y < MAX_GRID_Y
 
 def tile_occupied(coords: tuple[int, int]) -> bool:
-    """Checks if a tile is occupied, returning False if so, True if it is"""
+    """Checks if a tile is occupied, returning True if so, False if it isn't"""
     occupants = GRID_OCCUPANCY.get(coords, [])
     return len(occupants) > 0
 
-def change_tile_occupancy(obj, new_coords: tuple[int, int]):
-    """Updates the objects coords in the memory for searching"""
-    current_coords = obj.get_grid()
+def relocate_object_on_GO(obj: object, new_coords: tuple[int, int]):
+    """Updates the object's coords in GRID_OCCUPANCY"""
+    remove_object_from_GO(obj)
+    add_object_to_GO(obj, new_coords)
+    return to_pixel(new_coords), new_coords
 
-    if obj in GRID_OCCUPANCY.get(current_coords, []):
-        GRID_OCCUPANCY[current_coords].remove(obj)
-        if not GRID_OCCUPANCY[current_coords]:
-            del GRID_OCCUPANCY[current_coords]
+def remove_object_from_GO(obj: object):
+    """Removes an object from GRID_OCCUPANCY"""
+    coords = obj.grid_pos
 
-    if new_coords not in GRID_OCCUPANCY:
-        GRID_OCCUPANCY[new_coords] = []
-    
-    GRID_OCCUPANCY[new_coords].append(obj)
+    if coords in GRID_OCCUPANCY:
+        if obj in GRID_OCCUPANCY[coords]:
+            GRID_OCCUPANCY.get(coords).remove(obj)
+            if not GRID_OCCUPANCY[coords]:
+                del GRID_OCCUPANCY[coords]
 
-# Path finding
+def add_object_to_GO(obj: object, coords: tuple[int, int]):
+    """Adds an object to GRID_OCCUPANCY"""
+    if coords not in GRID_OCCUPANCY:
+        GRID_OCCUPANCY[coords] = []
+
+    GRID_OCCUPANCY[coords].append(obj)
 
 def get_adjacent_tiles(grid_coords: tuple[int, int],
                        diagonals: bool=True,

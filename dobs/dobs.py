@@ -1,7 +1,7 @@
 import pygame
 from random import choice
 from utilities.config import *
-from utilities.utils import tile_occupied, within_bounds, get_adjacent_tiles
+from utilities.utils import tile_occupied, within_bounds, get_adjacent_tiles, remove_object_from_GO
 from dobs.brain import Brain
 from world_objects import Simulation_Object
 
@@ -19,31 +19,29 @@ class Dob(Simulation_Object):
     ## Main functions
     # Called each tick to handle behavior, cooldowns, aging, and rendering
     def exist(self, surface):
-        pygame.draw.circle(surface, self.color, self.current_loc, self.size)
+        pygame.draw.circle(surface, self.color, self.pixel_pos, self.size)
         self.see()
         self.brain.think()
 
         self.increment()
 
     # Moves dob to target's grid coordinates, if target=None, move randomly
-    def move_towards(self, target=None) -> bool:
-        if self.current_path == [] and not target:
-            self.current_path = self.find_path(self.get_grid(), self.get_random_tile())
+    def move_towards(self, target: tuple[int, int]) -> bool:
+        if len(self.current_path) == 0:
+            self.current_path = self.find_path(self.grid_pos, target)
 
-        if self.current_path == [] and target:
-            if self.is_adjacent_to(target):
-                return
-            self.current_path = self.find_path(self.get_grid(), target.get_grid())
-        
+        if self.is_adjacent_to(target):
+            return
+
         if len(self.current_path) == 0:
             return
 
-        print(f"Dob #{self.id}'s current path is {len(self.current_path)} units long.")
         next_step = self.current_path[0]
 
         if not tile_occupied(next_step):
-            self.move_to(next_step)
             self.current_path.pop(0)
+            self.move_to(next_step)
+            self.expend_energy(1)
             return True
         
         else:
@@ -51,12 +49,7 @@ class Dob(Simulation_Object):
             return False
     
     # Dobs use a BFS algorithm to find the best possible path (think: wave)
-
-    # Current issue is with end position, if it lands on an object that is invalid, the system crashes!
-    # This is possibly due to the system checking for tile_occupied(end_pos), and then it returns false
-    # and the whole system doesn't understand what to do next.
     def find_path(self, start_pos: tuple[int, int], end_pos: tuple[int, int]) -> list:
-        print("Starting pathfinding...")
         visited = set([start_pos])
         queue = [(start_pos, [])]
 
@@ -66,26 +59,20 @@ class Dob(Simulation_Object):
         while queue:
             current_pos, path = queue.pop(0)
             if current_pos == end_pos:
-                # if not tile_occupied(end_pos):
-                #     path.remove(end_pos) # bad idea?
                 return path
 
             for neighbor in get_adjacent_tiles(current_pos):
-                if neighbor not in visited and not tile_occupied(neighbor) and within_bounds(neighbor):
+                if neighbor not in visited and within_bounds(neighbor):
                     visited.add(neighbor)
-                    queue.append((neighbor, path + [neighbor]))
-
-        if tile_occupied(end_pos):
-            print(f"[Dob#{self.id}] Target tile {end_pos} is occupied — target likely sitting there.")
-            print("Occupants:", GRID_OCCUPANCY.get(end_pos, []))
+                    if not tile_occupied(neighbor) or neighbor == end_pos:
+                        queue.append((neighbor, path + [neighbor]))
 
         return []
 
     def find_available_adjacent(self, coords):
         adjacents = get_adjacent_tiles(coords, diagonals=False, avoid_occupied=True)
-        if adjacents == []:
-            print("Pathfinding to adjacents failed, surrounded tile?")
-            
+        while adjacents == []:
+            return self.get_random_tile()
         return choice(adjacents)
 
     # Defines a variety of actions based on the object (target) being interacted with
@@ -105,7 +92,7 @@ class Dob(Simulation_Object):
     
     # Calculates all visible tiles within sight distance and then passes visible tiles to memory
     def see(self):
-        grid_x, grid_y = self.get_grid()
+        grid_x, grid_y = self.grid_pos
         sight_distance = self.dna["sight"]
         self.tiles_in_vision = []
 
@@ -131,7 +118,7 @@ class Dob(Simulation_Object):
 
         if target.can_mate():
             dob = Dob(mom=female, dad=male)
-            dob.move_to(female.get_grid())
+            dob.move_to(female.grid_pos)
 
             female.mating_cooldown = MATING_COOLDOWN
             female.expend_energy(5)
@@ -146,16 +133,16 @@ class Dob(Simulation_Object):
     
     # Defines a dob's cause of death and sets them to dead - RIP
     def die(self):
-        if self.age >= DEATH_AGE:
-            self.cause_of_death = "age"
-
-        elif self.current_calories <= 0:
+        if self.current_calories <= 0:
             self.cause_of_death = "starvation"
 
         elif self.current_hydration <= 0:
             self.cause_of_death = "dehydration"
         
+        remove_object_from_GO(self)
         self.alive = False
+
+        print(f"Dob #{self.id} died of {self.cause_of_death} at age {self.age}.")
 
     ## Data functions
     # Collects dob's information and returns it
@@ -165,7 +152,7 @@ class Dob(Simulation_Object):
             "cause_of_death": self.cause_of_death
         }
     
-    # region HELPER FUNCTIONS
+    # region ----- HELPER FUNCTIONS -----
 
     # Defines all of the dob's starting 'biological' traits
     def generate_biology(self, sex, mom, dad):
@@ -198,15 +185,15 @@ class Dob(Simulation_Object):
 
     # Updates the age milestones
     def update_age(self):
+        if self.age >= DEATH_AGE:
+            self.cause_of_death = "age"
+            self.die()
+
         if self.age >= ADULT_AGE:
             self.size = ADULT_DOB_SIZE
         
         elif self.age >= ELDER_AGE:
             pass # for now
-
-        elif self.age >= DEATH_AGE:
-            self.die()
-            return
 
     # Updates the sex attributes
     def update_sex_attributes(self, sex):
@@ -256,8 +243,6 @@ class Dob(Simulation_Object):
                 self.mating_cooldown -= MATING_COOLDOWN_SPEED
 
         self.age += AGE_RATE
-
-        if self.age >= ADULT_AGE:
-            self.size = TILE_SIZE / 2
+        self.update_age()
 
     # endregion

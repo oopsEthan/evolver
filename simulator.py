@@ -21,35 +21,38 @@ class Simulator():
         self.initialize_sim()
 
         is_running = True
+        paused = False
         while is_running:
             self.screen.fill("#5FF46F")
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     is_running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        paused = not paused
 
-            # -- Object-handling --
+            if not paused:
+                # -- Object-handling --
+                self.tick_objects(ACTIVE_WATER)
+                self.tick_objects(ACTIVE_FOOD)
+                self.tick_dobs()
 
-            self.tick_objects(ACTIVE_WATER)
-            self.tick_objects(ACTIVE_FOOD)
-            self.tick_dobs()
+                # -- Debugging --
 
-            # -- Debugging --
+                # -- End of Drawing --
+                pygame.display.flip()
 
-            # -- End of Drawing --
-            pygame.display.flip()
+                if len(ACTIVE_DOBS) == 0:
+                    is_running = False
 
-            if len(ACTIVE_DOBS) == 0:
-                print("All dobs have died! Ending simulation...")
-                break
-
-            if self.tick % SNAPSHOT_FREQUENCY == 0:
-                self.data_collector.generate_snapshot()
-            
-            # -- End of Tick --
-            print("tick")
-            self.tick += 1
-            self.clock.tick(TPS)
+                if self.tick % SNAPSHOT_FREQUENCY == 0:
+                    self.data_collector.generate_snapshot()
+                
+                # -- End of Tick --
+                # print(f"End of tick {self.tick}\n")
+                self.tick += 1
+                self.clock.tick(TPS)
 
         # -- Post-simulation --
         self.data_collector.generate_snapshot()
@@ -59,8 +62,11 @@ class Simulator():
     # Initializes the simulation by creating all objects
     def initialize_sim(self) -> None:
         self.place_water_sources()
+        print(f"Water placed, totaling: {len(ACTIVE_WATER)}")
         self.place_food()
+        print(f"Food placed, totaling: {len(ACTIVE_FOOD)}")
         self.populate_dobs()
+        print(f"Dobs placed, totaling: {len(ACTIVE_DOBS)}")
 
     # Places water sources uniformly
     def place_water_sources(self) -> None:
@@ -68,7 +74,7 @@ class Simulator():
             x = int(uniform(0, MAX_GRID_X - 1))
             y = int(uniform(0, MAX_GRID_Y - 1))
 
-            if any(w.get_grid() == (x, y) for w in ACTIVE_WATER):
+            if any(w.grid_pos == (x, y) for w in ACTIVE_WATER):
                 continue
 
             Water(starting_coords=(x, y))
@@ -96,13 +102,12 @@ class Simulator():
     def tick_dobs(self) -> None:
         for dob in ACTIVE_DOBS[:]:
             dob.exist(self.screen)
-            self._draw_path_DEBUG(dob)
             if dob.alive == False:
                 self.data_collector.process_package(dob.collect_package())
                 ACTIVE_DOBS.remove(dob)
     
     ## Debug functions
-    # When True, draws grid on screen
+    # Draws grid on screen with grid coordinates
     def _draw_grid_DEBUG(self) -> None:
         font = pygame.font.SysFont(None, 18)
         grid_color = (40, 40, 40)
@@ -120,15 +125,18 @@ class Simulator():
             label = font.render(str(grid_index), True, label_color)
             self.screen.blit(label, (2, y + 2))
     
+    # Draws paths created in pathfinding (call on dobs)
     def _draw_path_DEBUG(self, obj):
-        i = 0
+        if obj.current_path:
+            for i in range(len(obj.current_path) - 1):
+                start = obj.current_path[i]
+                end = obj.current_path[i + 1]
+                pygame.draw.line(self.screen, "black", to_pixel(start), to_pixel(end))
 
-        while i < len(obj.current_path) - 1:
-            start = obj.current_path[i]
-            end = obj.current_path[i+1]
-            pygame.draw.line(self.screen, "black", to_pixel(start), to_pixel(end))
-            i += 1
+            final_tile = obj.current_path[-1]
+            offset = to_pixel(final_tile) - pygame.Vector2(TILE_SIZE // 2, TILE_SIZE // 2)
+            pygame.draw.rect(self.screen, "red", pygame.Rect(offset, GRID_UNIT))
 
-print("Hello world!")
+
 simulator = Simulator()
 simulator.run()
