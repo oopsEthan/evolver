@@ -1,4 +1,5 @@
-# ----- UTILITY -----
+# region ----- UTILITY -----
+
 # UI Settings
 TPS = 10
 MAX_X = 720
@@ -8,40 +9,63 @@ GRID_UNIT = (TILE_SIZE, TILE_SIZE)
 MAX_GRID_X = MAX_X // TILE_SIZE
 MAX_GRID_Y = MAX_Y // TILE_SIZE
 
-# ----- FOOD -----
+# endregion
+
+# region  ----- FOOD -----
+
 # Food Constants
 ACTIVE_FOOD = []
 FOOD = "food"
 
 # Food Settings
-STARTING_FOOD_COUNT = 15
+STARTING_FOOD_COUNT = 10
 FOOD_REGROWTH_COOLDOWN = 50
 FOOD_VALUE = 250
 
-# ----- WATER -----
+# endregion
+
+# region ----- WATER -----
+
 # Water Constants
 ACTIVE_WATER = []
 WATER = "water"
 
 # Water Settings
-STARTING_WATER_SOURCES = 10
+STARTING_WATER_SOURCES = 5
 CASCADE_CHANCE_REDUCTION = 0.01
-WATER_VALUE = 20
+WATER_VALUE = 15
 
-# ----- DOBS -----
+# endregion
+
+# region ----- DOBS -----
+
 # Dob Constants
 ACTIVE_DOBS = []
 DOB = "dob"
 REPRODUCTION = "reproduction"
 SHORT_TERM = "short"
 LONG_TERM = "long"
+SHORT_TERM_MEMORY = "short"
+LONG_TERM_MEMORY = "long"
+DOBAMINE = "dobamine"
 
-## Dob Settings
+# Dob Settings
 STARTING_DOB_POPULATION = 10
 
-DOB_TRAITS = {
-    # Memory ages -> affect how long dobs remember things
-    "short": 5,
+DEFAULT_MAX_CALORIES = 1000
+HUNGER_THRESHHOLD = 0.8
+
+DEFAULT_MAX_HYDRATION = 100
+THIRST_THRESHHOLD = 0.8
+
+DEFAULT_DOBAMINE = 100
+LOW_DOBAMINE_THRESHHOLD = 0.4
+HIGH_DOBAMINE_THRESHHOLD = 0.8
+DOBAMINE_EXPLORATION_REWARD = 1
+
+# Memory ages affect how long dobs remember things, removing 1 per tick
+MEMORY_AGES = {
+    "short": 10,
     "long": 500,
 }
 
@@ -54,19 +78,24 @@ ELDER_AGE = 150
 DEATH_AGE = 200
 
 # Colors
-FEMALE_COLOR = (100, 0, 255)
-
+FEMALE_COLOR = (155, 0, 255)
 MALE_COLOR = (0, 10, 255)
 
 # Mating
 MATING_COOLDOWN = 10
-MATING_COOLDOWN_SPEED = 0.5
+MATING_COOLDOWN_SPEED = 0.5 # gained per tick
 
-# ----- DATA -----
+# endregion
+
+# region ----- DATA -----
+
 # Data Settings
 SNAPSHOT_FREQUENCY = 20
 
-# ----- GENERAL -----
+# endregion
+
+# region ----- GENERAL -----
+
 ACTIVE_OBJECTS = [ACTIVE_DOBS, ACTIVE_FOOD, ACTIVE_WATER]
 GRID_OCCUPANCY = {}
 
@@ -93,3 +122,5 @@ GRID_DIAGONALS = [
     SOUTHWEST,
     NORTHWEST
 ]
+
+# endregion

@@ -12,11 +12,11 @@ class Dob(Simulation_Object):
         super().__init__()
         self.register(Dob, DOB, ACTIVE_DOBS)
         self.generate_biology(sex, mom, dad)
-        self.generate_needs()
+        self.generate_needs(DEFAULT_MAX_CALORIES, DEFAULT_MAX_HYDRATION, DEFAULT_DOBAMINE)
 
+        self.visited_tiles = [self.grid_pos]
         self.current_path = []
 
-    ## Main functions
     # Called each tick to handle behavior, cooldowns, aging, and rendering
     def exist(self, surface):
         pygame.draw.circle(surface, self.color, self.pixel_pos, self.size)
@@ -25,13 +25,14 @@ class Dob(Simulation_Object):
 
         self.increment()
 
-    # Moves dob to target's grid coordinates, if target=None, move randomly
+    # region ----- PATHFINDING FUNCTIONS -----
+
+    # Moves dob to grid coords
     def move_towards(self, target: tuple[int, int]) -> bool:
         if len(self.current_path) == 0:
+            if self.is_adjacent_to(target):
+                return
             self.current_path = self.find_path(self.grid_pos, target)
-
-        if self.is_adjacent_to(target):
-            return
 
         if len(self.current_path) == 0:
             return
@@ -39,6 +40,7 @@ class Dob(Simulation_Object):
         next_step = self.current_path[0]
 
         if not tile_occupied(next_step):
+            self.current_dobamine += self.get_tile_dobamine(next_step)
             self.current_path.pop(0)
             self.move_to(next_step)
             self.expend_energy(1)
@@ -54,7 +56,7 @@ class Dob(Simulation_Object):
         queue = [(start_pos, [])]
 
         if tile_occupied(end_pos):
-            end_pos = self.find_available_adjacent(end_pos)
+            end_pos = find_available_adjacent(self, end_pos)
 
         while queue:
             current_pos, path = queue.pop(0)
@@ -69,19 +71,17 @@ class Dob(Simulation_Object):
 
         return []
 
-    def find_available_adjacent(self, coords):
-        adjacents = get_adjacent_tiles(coords, diagonals=False, avoid_occupied=True)
-        while adjacents == []:
-            return self.get_random_tile()
-        return choice(adjacents)
+    # endregion
 
     # Defines a variety of actions based on the object (target) being interacted with
     def interact(self, target):
         if target.tag == FOOD:
+            self.current_dobamine += 5
             self.current_calories += target.interact_with()
         
         elif target.tag == WATER:
             self.brain.memorize(LONG_TERM, target)
+            self.current_dobamine += 5
             self.thirst_threshhold = 0.4
             self.current_hydration += target.interact_with()
 
@@ -91,17 +91,17 @@ class Dob(Simulation_Object):
         return True
     
     # Calculates all visible tiles within sight distance and then passes visible tiles to memory
-    def see(self):
+    def see(self) -> list:
         grid_x, grid_y = self.grid_pos
-        sight_distance = self.dna["sight"]
         self.tiles_in_vision = []
 
-        for x in range(grid_x - sight_distance, grid_x + sight_distance + 1):
-            for y in range(grid_y - sight_distance, grid_y + sight_distance + 1):
+        for x in range(grid_x - self.sight, grid_x + self.sight + 1):
+            for y in range(grid_y - self.sight, grid_y + self.sight + 1):
                 if within_bounds((x, y)):
                     self.tiles_in_vision.append((x, y))
 
         self.memorize_interests(self.tiles_in_vision)
+        return self.tiles_in_vision
 
     # When dobs do something that requires energy, this is called to expend it
     def expend_energy(self, factor):
@@ -119,12 +119,14 @@ class Dob(Simulation_Object):
         if target.can_mate():
             dob = Dob(mom=female, dad=male)
             dob.move_to(female.grid_pos)
-
+            
             female.mating_cooldown = MATING_COOLDOWN
             female.expend_energy(5)
+            female.current_dobamine += 5
             female.offspring += 1
 
             male.mating_cooldown = MATING_COOLDOWN
+            male.current_dobamine += 10
             male.expend_energy(3)
 
             return
@@ -144,7 +146,8 @@ class Dob(Simulation_Object):
 
         print(f"Dob #{self.id} died of {self.cause_of_death} at age {self.age}.")
 
-    ## Data functions
+    # region ----- DATA FUNCTIONS -----
+
     # Collects dob's information and returns it
     def collect_package(self) -> dict:
         return {
@@ -152,6 +155,8 @@ class Dob(Simulation_Object):
             "cause_of_death": self.cause_of_death
         }
     
+    # endregion
+
     # region ----- HELPER FUNCTIONS -----
 
     # Defines all of the dob's starting 'biological' traits
@@ -162,6 +167,7 @@ class Dob(Simulation_Object):
         self.alive = True
         self.age = 0
 
+        self.sight = 3
         self.size = BABY_DOB_SIZE
 
         self.update_sex_attributes(sex)
@@ -170,18 +176,20 @@ class Dob(Simulation_Object):
         self.offspring = 0
         self.cause_of_death = ""
 
-        self.dna = {
-            "sight": 3,
-            "max_calories": 1000,
-            "max_hydration": 100,
-        }
-
     # Defines all of the dob's starting needs
-    def generate_needs(self):
-        self.current_calories = self.dna["max_calories"]
-        self.hunger_threshhold = 0.8
-        self.current_hydration = self.dna["max_hydration"]
-        self.thirst_threshhold = 0.8
+    def generate_needs(self, max_calories, max_hydration, max_dobamine):
+        self.max_calories = max_calories
+        self.current_calories = max_calories
+        self.hunger_threshhold = HUNGER_THRESHHOLD
+
+        self.max_hydration = max_hydration
+        self.current_hydration = max_hydration
+        self.thirst_threshhold = THIRST_THRESHHOLD
+
+        self.max_dobamine = max_dobamine
+        self.current_dobamine = max_dobamine
+        self.dobamine_low_threshhold = LOW_DOBAMINE_THRESHHOLD
+        self.dobamine_high_threshhold = HIGH_DOBAMINE_THRESHHOLD
 
     # Updates the age milestones
     def update_age(self):
@@ -205,25 +213,50 @@ class Dob(Simulation_Object):
         elif sex == "M":
             self.color = MALE_COLOR
 
-    # Checks hunger
     def is_hungry(self) -> bool:
-        return self.current_calories < (self.dna["max_calories"] * self.hunger_threshhold)
+        """Checks hunger"""
+        return self.current_calories < (self.max_calories * self.hunger_threshhold)
     
-    # Checks thirst
     def is_thirsty(self) -> bool:
-        return self.current_hydration < (self.dna["max_hydration"] * self.thirst_threshhold)
-
-    # Checks ability to mate
+        """Checks thirst"""
+        return self.current_hydration < (self.max_hydration * self.thirst_threshhold)
+    
     def can_mate(self) -> bool:
+        """Checks ability to mate"""
         return (self.mating_cooldown == 0 and
                 self.age >= ADULT_AGE and
-                self.current_calories > self.dna["max_calories"] * self.hunger_threshhold and
-                self.current_hydration > self.dna["max_hydration"] * self.thirst_threshhold)
+                self.current_calories > self.max_calories * self.hunger_threshhold and
+                self.current_hydration > self.max_hydration * self.thirst_threshhold)
     
-    # Returns a random tile within vision
-    def get_random_tile(self) -> tuple[int, int]:
-        tile_options = [tile for tile in self.tiles_in_vision if not tile_occupied(tile)]
-        return choice(tile_options)
+    def needs_dobamine(self) -> float:
+        """Checks dobamine and returns a weight value for the brain"""
+        if self.current_dobamine < (self.max_dobamine * self.dobamine_low_threshhold):
+            return 0.8
+        elif self.current_dobamine < (self.max_dobamine * self.dobamine_high_threshhold):
+            return 0.4
+        return 0
+    
+    def get_tile_dobamine(self, coords: tuple[int, int], record_visit: bool=True) -> int:
+        """Gets a tile's dobamine exploration reward"""
+        if coords not in self.visited_tiles and record_visit:
+            self.visited_tiles.append(coords)
+        elif coords in self.visited_tiles:
+            return -DOBAMINE_EXPLORATION_REWARD
+        
+        return DOBAMINE_EXPLORATION_REWARD
+
+    def get_tile_in_sight(self, need_dobamine=False) -> tuple[int, int]:
+        """Returns a random tile within vision, if need_dobamine = True, only returns positive dobamine tiles"""
+        positive_dobamine_tiles = sorted(
+            [tile for tile in self.tiles_in_vision if not tile_occupied(tile) and tile not in self.visited_tiles],
+            key=lambda t: self.get_grid_distance_to(t)
+        )
+        neutral_dobamine_tiles = [tile for tile in self.tiles_in_vision if not tile_occupied(tile) and tile in self.visited_tiles]
+
+        if need_dobamine and len(positive_dobamine_tiles) != 0:
+            return positive_dobamine_tiles[0]
+        
+        return choice(positive_dobamine_tiles + neutral_dobamine_tiles)
     
     # Memorizes any object in sight to short-term memory
     def memorize_interests(self, coords):
@@ -233,7 +266,7 @@ class Dob(Simulation_Object):
                     continue
                 if obj.tag == DOB and not obj.can_mate():
                     continue
-                self.brain.memorize(SHORT_TERM, obj)
+                self.brain.memorize(SHORT_TERM_MEMORY, obj)
 
     # Increments counters
     def increment(self):
@@ -246,3 +279,13 @@ class Dob(Simulation_Object):
         self.update_age()
 
     # endregion
+
+# region ----- LOCAL FUNCTIONS -----
+
+def find_available_adjacent(obj, coords):
+        adjacents = get_adjacent_tiles(coords, diagonals=False, avoid_occupied=True)
+        while adjacents == []:
+            return obj.get_tile_in_sight()
+        return choice(adjacents)
+
+# endregion

@@ -8,8 +8,8 @@ class Data_Collector():
 
         # Metrics dictionary
         self.metrics = {
-            "total": 0,
-            "alive": 0,
+            "total": STARTING_DOB_POPULATION,
+            "alive": STARTING_DOB_POPULATION,
             "births": 0,
             "death": {
                 "deaths": 0,
@@ -32,11 +32,11 @@ class Data_Collector():
     # Creates a snapshot of data
     def generate_snapshot(self):
         total = len(ACTIVE_DOBS) + self.metrics["death"]["deaths"]
-        births = total - self.metrics["total"]
+        births = STARTING_DOB_POPULATION - total
 
         self.metrics["total"] = total
         self.metrics["alive"] = len(ACTIVE_DOBS)
-        self.metrics["births"] += births
+        self.metrics["births"] = births
         self.metrics["death"] = self.get_death_metrics()
 
         snapshot = copy.deepcopy(self.metrics)
@@ -53,3 +53,5 @@ class Data_Collector():
             "dehydration": self.metrics["death"]["dehydration"],
             "age": self.metrics["death"]["age"],
         }
+
+    # Returns a snapshot of current births
