@@ -16,6 +16,12 @@ class Data_Collector():
                 "starvation": 0,
                 "dehydration": 0,
                 "age": 0
+            },
+            "averages": {
+                "avg_calories": 0,
+                "avg_hydration": 0,
+                "avg_dobamine": 0,
+                "avg_age": 0
             }
         }
 
@@ -38,6 +44,7 @@ class Data_Collector():
         self.metrics["alive"] = len(ACTIVE_DOBS)
         self.metrics["births"] = births
         self.metrics["death"] = self.get_death_metrics()
+        self.metrics["averages"] = self.get_average_stats()
 
         snapshot = copy.deepcopy(self.metrics)
         if not self.data or snapshot != self.data[-1]:
@@ -55,3 +62,15 @@ class Data_Collector():
         }
 
     # Returns a snapshot of current births
+
+    def get_average_stats(self) -> dict:
+        keys = ["calories", "hydration", "dobamine", "age"]
+        totals = {key: 0 for key in keys}
+
+        for dob in ACTIVE_DOBS:
+            stats = dob.collect_stats()
+            for key in keys:
+                totals[key] += stats[key]
+            
+        count = len(ACTIVE_DOBS)
+        return {f"avg_{key}": totals[key] / count for key in keys} if count > 0 else {}

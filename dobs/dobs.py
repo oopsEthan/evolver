@@ -146,17 +146,6 @@ class Dob(Simulation_Object):
 
         print(f"Dob #{self.id} died of {self.cause_of_death} at age {self.age}.")
 
-    # region ----- DATA FUNCTIONS -----
-
-    # Collects dob's information and returns it
-    def collect_package(self) -> dict:
-        return {
-            "tag": self.tag,
-            "cause_of_death": self.cause_of_death
-        }
-    
-    # endregion
-
     # region ----- HELPER FUNCTIONS -----
 
     # Defines all of the dob's starting 'biological' traits
@@ -278,6 +267,25 @@ class Dob(Simulation_Object):
         self.age += AGE_RATE
         self.update_age()
 
+    # endregion
+
+    # region ----- DATA FUNCTIONS -----
+
+    # Collects dob's information and returns it
+    def collect_package(self) -> dict:
+        return {
+            "tag": self.tag,
+            "cause_of_death": self.cause_of_death
+        }
+    
+    def collect_stats(self) -> dict:
+        return {
+            "calories": self.current_calories,
+            "hydration": self.current_hydration,
+            "age": self.age,
+            "dobamine": self.current_dobamine
+        }
+    
     # endregion
 
 # region ----- LOCAL FUNCTIONS -----
