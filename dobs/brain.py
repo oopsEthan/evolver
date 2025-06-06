@@ -1,16 +1,15 @@
 from utilities.config import *
 from random import random
 
+# TODO: Add aggressive vs passive search modes based on urgency
+# TODO: Ponder orb and think how dobamine can affect urgencies
+# TODO: Implement weight system (is this where dobamine goes?)
+
 class Brain():
     def __init__(self):
         self.dob = None
 
-        self.needs = [
-            WATER,
-            FOOD,
-            DOBAMINE,
-            REPRODUCTION
-        ]
+        self.current_goal = {}
 
         self.memory = {
             SHORT_TERM_MEMORY: [],
@@ -19,39 +18,48 @@ class Brain():
     
     # Function called to determine what a dob is going to do
     def think(self):
-        target, coords = self.evaluate()
+        goal = self.determine_goal()
+        
+        if not self.current_goal:
+            self.current_goal = goal
 
-        if coords is None:
-            print(f"Dob #{self.dob.id} has no coords to move to.")
-            return
+        coords = self.current_goal.get("coords")
+        target = self.current_goal.get("target")
 
+        # If the dob is adjacent to coords (target), interact with it
         if self.dob.is_adjacent_to(coords) and target:
             self.dob.interact(target)
+            self.current_goal = {}
             return
 
-        self.dob.move_towards(coords)
-        return
-
-        # else:
-        #     if random() > 0.5:
-        #         self.dob.move_towards(self.dob.get_tile_in_sight())
-        #     return
+        # If the dobs goal has changed, re-evaluate it's path
+        if self.current_goal != goal:
+            self.dob.move_towards(goal["coords"], repath=True)
+            self.current_goal = goal
+        
+        # If the dobs goals have not changed and it's not adjacent, continue movement
+        else:
+            self.dob.move_towards(coords)
 
     # Evaluates what a dob needs most at any given time
-    def evaluate(self):
+    def determine_goal(self):
         target, coords = None, None
 
-        if self.dob.is_thirsty():
+        needs = self.get_urgencies()
+        most_urgent = max(needs, key=needs.get)
+    
+        if most_urgent == WATER:
             target, coords = self.get_closest_water()
 
-        elif self.dob.is_hungry():
+        elif most_urgent == FOOD:
             target, coords = self.get_closest_food()
 
-        elif self.dob.can_mate():
-            target, coords = self.get_closest_dob()
+        elif most_urgent == REPRODUCTION:
+            target, coords = self.get_closest_mate()
         
         if not target or not coords:
             exploration_weight = self.dob.needs_dobamine()
+            goal = None
 
             if random() < exploration_weight:
                 target, coords = None, self.dob.get_tile_in_sight(need_dobamine=True)
@@ -59,7 +67,14 @@ class Brain():
             else:
                 target, coords = None, self.dob.get_tile_in_sight()
 
-        return target, coords
+        if target:
+            goal = target.tag
+
+        return {
+            "target": target,
+            "coords": coords,
+            "goal": goal
+        }
     
     # Memorize an object to memory.
     def memorize(self, memory_type, object):
@@ -69,6 +84,20 @@ class Brain():
             self.memory[memory_type].append((object, MEMORY_AGES[memory_type]))
     
     # region ----- HELPER FUNCTIONS -----
+
+    # Determines urgencies for decision making
+    def get_urgencies(self):
+        self.thirst_ratio = self.dob.current_hydration / self.dob.max_hydration
+        self.hunger_ratio = self.dob.current_calories / self.dob.max_calories
+
+        self.thirst_urgency = 1 - self.thirst_ratio
+        self.hunger_urgency = 1 - self.hunger_ratio
+
+        return {
+            WATER: self.thirst_urgency,
+            FOOD: self.hunger_urgency,
+            REPRODUCTION: self.determine_sexual_urge()
+        }
 
     # Get the closet food to the dob
     def get_closest_food(self):
@@ -96,14 +125,34 @@ class Brain():
         return closest
 
     # Get the closet opposite sex dob to the dob
-    def get_closest_dob(self):
-        matches = [obj for obj, _ in self.memory[SHORT_TERM_MEMORY] if obj.tag == DOB and obj.sex != self.dob.sex]
+    def get_closest_mate(self):
+        matches = self.get_known_mates()
         if matches:
             target = min(matches, key=lambda m: self.dob.get_grid_distance_to(m.grid_pos))
             return target, target.grid_pos
 
-
         return None, None
+    
+    # Determines a dobs urgency
+    def determine_sexual_urge(self):
+        if self.dob.can_mate():
+            the_urge = (self.hunger_ratio + self.thirst_ratio) / 2
+
+            nearby_mate = self.get_known_mates()
+
+            if nearby_mate:
+                urgency = min(1.0, the_urge + 0.3)
+            
+            else:
+                urgency = the_urge
+        
+        else:
+            urgency = 0.0
+
+        return urgency
+    
+    def get_known_mates(self):
+        return [obj for obj, _ in self.memory[SHORT_TERM_MEMORY] if obj.tag == DOB and obj.sex != self.dob.sex]
 
     # Checks memories for target, short-term is prioritized
     def check_memories(self, target):
@@ -112,6 +161,7 @@ class Brain():
         
         return short + long
 
+    # TODO: Make this less flat and more dynamic!
     # Ages memories by 1 per tick, if age == 0, the memory is forgotten
     def age_memories(self):
         for memory_type in self.memory:

@@ -1,5 +1,5 @@
 import pygame
-from random import randrange, random, choice
+from random import randrange, random, randint, choice
 from utilities.config import *
 from utilities.utils import *
 
@@ -34,6 +34,9 @@ class Simulation_Object:
 
     def is_adjacent_to(self, coords: tuple[int,int]) -> bool:
         """Checks if the target is adjacent to the object"""
+        if not coords:
+            return False
+        
         tx, ty = coords
         dx, dy = self.grid_pos
         return abs(tx - dx) + abs(ty - dy) == 1
@@ -60,25 +63,36 @@ class Food(Simulation_Object):
         self.register(Food, FOOD, ACTIVE_FOOD)
         
         self.eaten = False
-        self.regrow_cooldown = FOOD_REGROWTH_COOLDOWN
-        self.energy_value = FOOD_VALUE
+        self.regrowth_chance = DEFAULT_FOOD_REGROWTH_CHANCE
+        self.energy_value = MIN_FOOD_VALUE
 
     def exist(self, surface):
         if not self.eaten:
             pygame.draw.circle(surface, "red", self.pixel_pos, TILE_SIZE/2)
+            self.increase_value()
 
         # Food regrows, every tick counts the cooldown down 1
         else:
-            if self.regrow_cooldown == 0:
-                self.eaten = False
-                self.regrow_cooldown = FOOD_REGROWTH_COOLDOWN
-            
-            self.regrow_cooldown -= 1
+            self.eaten = self.try_to_regrow()
 
     # Food has to mark itself as eaten :(
     def interact_with(self):
         self.eaten = True
         return super().interact_with()
+
+    def try_to_regrow(self) -> bool:
+        if random() < self.regrowth_chance:
+            print(f"Food regrew at {self.regrowth_chance*10:.1f}%.")
+            self.regrowth_chance = DEFAULT_FOOD_REGROWTH_CHANCE
+            self.energy_value = MIN_FOOD_VALUE
+            return False
+        
+        self.regrowth_chance += 0.01
+        return True
+
+    def increase_value(self):
+        if self.energy_value < MAX_FOOD_VALUE:
+            self.energy_value += 1
 
 # Worter
 class Water(Simulation_Object):

@@ -22,6 +22,10 @@ class Data_Collector():
                 "avg_hydration": 0,
                 "avg_dobamine": 0,
                 "avg_age": 0
+            },
+            "sex": {
+                "perc_females": 0.0,
+                "perc_males": 0.0
             }
         }
 
@@ -38,13 +42,13 @@ class Data_Collector():
     # Creates a snapshot of data
     def generate_snapshot(self):
         total = len(ACTIVE_DOBS) + self.metrics["death"]["deaths"]
-        births = STARTING_DOB_POPULATION - total
 
         self.metrics["total"] = total
         self.metrics["alive"] = len(ACTIVE_DOBS)
-        self.metrics["births"] = births
+        self.metrics["births"] = total - STARTING_DOB_POPULATION
         self.metrics["death"] = self.get_death_metrics()
         self.metrics["averages"] = self.get_average_stats()
+        self.metrics["sex"] = self.get_sex_stats()
 
         snapshot = copy.deepcopy(self.metrics)
         if not self.data or snapshot != self.data[-1]:
@@ -73,4 +77,32 @@ class Data_Collector():
                 totals[key] += stats[key]
             
         count = len(ACTIVE_DOBS)
-        return {f"avg_{key}": totals[key] / count for key in keys} if count > 0 else {}
+        return {f"avg_{key}": round((totals[key] / count), 1) for key in keys} if count > 0 else {}
+    
+    def get_sex_stats(self) -> dict:
+        females = 0
+        males = 0
+
+        for dob in ACTIVE_DOBS:
+            if dob.sex == "F":
+                females += 1
+            else:
+                males += 1
+
+        if females > 0 and males > 0:
+            return {
+                "females": females / (males + females),
+                "males": males / (males + females)
+            }
+        
+        elif males > 0 and females == 0:
+            return {
+                "males": 1
+            }
+
+        elif females > 0 and males == 0:
+            return {
+                "females": 1
+            }
+        
+        return {}

@@ -8,7 +8,7 @@ from world_objects import Simulation_Object
 class Dob(Simulation_Object):
     _id = 0
 
-    def __init__(self, sex=choice(["F", "M"]), mom=None, dad=None):
+    def __init__(self, sex=None, mom=None, dad=None):
         super().__init__()
         self.register(Dob, DOB, ACTIVE_DOBS)
         self.generate_biology(sex, mom, dad)
@@ -28,8 +28,8 @@ class Dob(Simulation_Object):
     # region ----- PATHFINDING FUNCTIONS -----
 
     # Moves dob to grid coords
-    def move_towards(self, target: tuple[int, int]) -> bool:
-        if len(self.current_path) == 0:
+    def move_towards(self, target: tuple[int, int], repath: bool=False) -> bool:
+        if len(self.current_path) == 0 or repath:
             if self.is_adjacent_to(target):
                 return
             self.current_path = self.find_path(self.grid_pos, target)
@@ -105,8 +105,8 @@ class Dob(Simulation_Object):
 
     # When dobs do something that requires energy, this is called to expend it
     def expend_energy(self, factor):
-        self.current_calories -= 10 * factor
-        self.current_hydration -= 1 * factor
+        self.current_calories -= FOOD_COST * factor
+        self.current_hydration -=  WATER_COST * factor
 
         if self.current_calories == 0 or self.current_hydration == 0:
             self.die()
@@ -159,6 +159,8 @@ class Dob(Simulation_Object):
         self.sight = 3
         self.size = BABY_DOB_SIZE
 
+        if sex == None:
+            sex = choice(["F", "M"])
         self.update_sex_attributes(sex)
 
         self.mating_cooldown = MATING_COOLDOWN
@@ -202,14 +204,17 @@ class Dob(Simulation_Object):
         elif sex == "M":
             self.color = MALE_COLOR
 
+    # TODO: Review if needed, replaced by urgency?
     def is_hungry(self) -> bool:
         """Checks hunger"""
         return self.current_calories < (self.max_calories * self.hunger_threshhold)
     
+    # TODO: Review if needed, replaced by urgency?
     def is_thirsty(self) -> bool:
         """Checks thirst"""
         return self.current_hydration < (self.max_hydration * self.thirst_threshhold)
     
+    # TODO: Review if needed, replaced by urgency?
     def can_mate(self) -> bool:
         """Checks ability to mate"""
         return (self.mating_cooldown == 0 and
