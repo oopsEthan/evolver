@@ -69,11 +69,11 @@ LOW_DOBAMINE_THRESHHOLD = 0.4
 HIGH_DOBAMINE_THRESHHOLD = 0.8
 DOBAMINE_EXPLORATION_REWARD = 1
 
-# Memory ages affect how long dobs remember things, removing 1 per tick
 MEMORY_AGES = {
-    "short": 20,
-    "long": 100,
+    SHORT_TERM_MEMORY: 20,
+    LONG_TERM_MEMORY: 100,
 }
+FORGET_CHANCE_PER = 0.02 # per tick
 
 # Age
 AGE_RATE = 1 # per tick

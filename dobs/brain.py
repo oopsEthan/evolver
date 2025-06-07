@@ -5,6 +5,9 @@ from random import random
 # TODO: Add aggressive vs passive search modes based on urgency
 # TODO: Ponder orb and think how dobamine can affect urgencies
 # TODO: Implement weight system (is this where dobamine goes?)
+# TODO: Make a communication system so dobs can tell other dobs where food is
+# TODO: Make dobs recognize food value and change their eating habits accordingly
+# TODO: Make dobs memory not decay in such a sudden manner, add reinforcement
 
 class Brain():
     def __init__(self):
@@ -169,6 +172,20 @@ class Brain():
     # Ages memories by 1 per tick, if age == 0, the memory is forgotten
     def age_memories(self):
         for memory_type in self.memory:
-            self.memory[memory_type] = [(mem, age - 1) for mem, age in self.memory[memory_type] if age > 1]
+            updated_memories = []
+
+            for mem, age in self.memory[memory_type]:
+                age -= 1
+
+                if age < 0:
+                    chance_to_forget = min(1.0, abs(age) * FORGET_CHANCE_PER)  
+                    if random() < chance_to_forget:
+                        print(f"A dob forgot {mem}, lol!")
+                        continue
+                updated_memories.append((mem, age))
+
+            self.memory[memory_type] = updated_memories
+
+            # self.memory[memory_type] = [(mem, age - 1) for mem, age in self.memory[memory_type] if age > 1]
 
     # endregion

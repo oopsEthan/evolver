@@ -1,5 +1,5 @@
 import pygame
-from random import choice
+from random import choice, randint
 from utilities.config import *
 from utilities.utils import tile_occupied, within_bounds, get_adjacent_tiles, remove_object_from_GO
 from dobs.brain import Brain
@@ -153,7 +153,9 @@ class Dob(Simulation_Object):
         self.brain = Brain()
         self.brain.dob = self
         self.alive = True
+
         self.age = 0
+        self.death_age = DEATH_AGE + randint(-10, 10)
 
         self.sight = 3
         self.size = BABY_DOB_SIZE
