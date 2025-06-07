@@ -46,7 +46,7 @@ class Simulator():
                 if len(ACTIVE_DOBS) == 0:
                     is_running = False
 
-                if self.tick % SNAPSHOT_FREQUENCY == 0:
+                if self.tick % SNAPSHOT_FREQUENCY == 0 and is_running:
                     self.data_collector.generate_snapshot(self.tick)
                 
                 # -- End of Tick --
@@ -55,8 +55,11 @@ class Simulator():
                 self.clock.tick(TPS)
 
         # -- Post-simulation --
-        self.data_collector.generate_snapshot(self.tick)
         self.data_collector.save_snapshots_to_file()
+        self.data_collector.plot_stats()
+        self.data_collector.plot_death_causes()
+        self.data_collector.plot_resource_security()
+        self.data_collector.plot_alive_vs_food_security()
         pygame.quit()
 
     # Initializes the simulation by creating all objects
