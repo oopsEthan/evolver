@@ -74,21 +74,23 @@ class Dob(Simulation_Object):
     # endregion
 
     # Defines a variety of actions based on the object (target) being interacted with
-    def interact(self, target):
-        if target.tag == FOOD:
+    def interact(self, target: object) -> None:
+        if target.tag != DOB and target.interact_with():
+            if target.tag == FOOD:
+                self.current_calories += target.energy_value
+
+            elif target.tag == WATER:
+                self.current_hydration += target.energy_value
+            
             self.current_dobamine += 5
-            self.current_calories += target.interact_with()
-        
-        elif target.tag == WATER:
-            self.brain.update_memories(LONG_TERM, target)
-            self.current_dobamine += 5
-            self.thirst_threshhold = 0.4
-            self.current_hydration += target.interact_with()
+            self.brain.current_goal = {}
 
         elif target.tag == DOB:
-            self.mate(target)
+            if self.sex == MALE and self.can_mate():
+                self.attempt_to_mate(target)
         
-        return True
+        if self.brain.does_memory_exist(target):
+                self.brain.reinforce_memory(target, reinforcement=5, interact=True)
     
     # Calculates all visible tiles within sight distance and then passes visible tiles to memory
     def see(self) -> list:
@@ -100,7 +102,7 @@ class Dob(Simulation_Object):
                 if within_bounds((x, y)):
                     self.tiles_in_vision.append((x, y))
 
-        self.memorize_interests(self.tiles_in_vision)
+        self.brain.attempt_to_memorize(self.tiles_in_vision)
 
     # When dobs do something that requires energy, this is called to expend it
     def expend_energy(self, factor):
@@ -112,11 +114,9 @@ class Dob(Simulation_Object):
     
     # Mating creates a new dob with a combo of mom and dad's stats
     # Mating is only possible if both dobs are mating age and not on cooldown
-    def mate(self, target):
-        female, male = (target, self) if target.sex == "F" else (self, target)
-
-        if target.can_mate():
-            dob = Dob(mom=female, dad=male)
+    def attempt_to_mate(self, female):
+        if female.can_mate() and female.determine_viable_mate(self):
+            dob = Dob(mom=female, dad=self)
             dob.move_to(female.grid_pos)
             
             female.mating_cooldown = MATING_COOLDOWN
@@ -124,13 +124,28 @@ class Dob(Simulation_Object):
             female.current_dobamine += 5
             female.offspring += 1
 
-            male.mating_cooldown = MATING_COOLDOWN
-            male.current_dobamine += 10
-            male.expend_energy(3)
+            self.mating_cooldown = MATING_COOLDOWN
+            self.current_dobamine += 10
+            self.expend_energy(3)
 
+            self.brain.current_goal = {}
             return
         
-        self.mating_cooldown += MATING_COOLDOWN/2
+        else:
+            print(f"""Dob ({self.id}, {self.sex}) attempted mating with Dob ({female.id}, {female.sex}), but failed! :(
+                    FEMALE: {female.can_mate()}
+                    VIABILITY CHECK: {female.determine_viable_mate(self)}
+                    MALE, MATING CD: {self.mating_cooldown}
+                    MALE, AGE: {self.age}""")
+            self.brain.current_goal = {}
+
+            female.mating_cooldown += MATING_COOLDOWN/2
+            self.mating_cooldown += MATING_COOLDOWN/2
+    
+    # Only females should call this
+    def determine_viable_mate(self, male):
+        # TODO: Expand this to be more interesting lol
+        return male.can_mate()
     
     # Defines a dob's cause of death and sets them to dead - RIP
     def die(self):
@@ -161,7 +176,8 @@ class Dob(Simulation_Object):
         self.size = BABY_DOB_SIZE
 
         if sex == None:
-            sex = choice(["F", "M"])
+            sex = choice([FEMALE, MALE])
+
         self.update_sex_attributes(sex)
 
         self.mating_cooldown = MATING_COOLDOWN
@@ -199,30 +215,24 @@ class Dob(Simulation_Object):
     def update_sex_attributes(self, sex):
         self.sex = sex
 
-        if sex == "F":
+        if sex == FEMALE:
             self.color = FEMALE_COLOR
 
-        elif sex == "M":
+        elif sex == MALE:
             self.color = MALE_COLOR
-
-    # TODO: Review if needed, replaced by urgency?
-    def is_hungry(self) -> bool:
-        """Checks hunger"""
-        return self.current_calories < (self.max_calories * self.hunger_threshhold)
     
-    # TODO: Review if needed, replaced by urgency?
-    def is_thirsty(self) -> bool:
-        """Checks thirst"""
-        return self.current_hydration < (self.max_hydration * self.thirst_threshhold)
-    
-    # TODO: Review if needed, replaced by urgency?
     def can_mate(self) -> bool:
         """Checks ability to mate"""
-        return (self.mating_cooldown == 0 and
-                self.age >= ADULT_AGE and
-                self.current_calories > self.max_calories * self.hunger_threshhold and
-                self.current_hydration > self.max_hydration * self.thirst_threshhold)
-    
+        if self.sex == MALE:
+            return self.mating_cooldown == 0 and self.is_viable_mating_age()
+        elif self.sex == FEMALE:
+            return (self.mating_cooldown == 0 and
+                    self.is_viable_mating_age() and
+                    self.offspring < OFFSPRING_LIMIT)
+                    
+    def is_viable_mating_age(self) -> bool:
+        return ELDER_AGE >= self.age >= ADULT_AGE
+
     def needs_dobamine(self) -> float:
         """Checks dobamine and returns a weight value for the brain"""
         if self.current_dobamine < (self.max_dobamine * self.dobamine_low_threshhold):
@@ -253,16 +263,6 @@ class Dob(Simulation_Object):
         
         return choice(positive_dobamine_tiles + neutral_dobamine_tiles)
     
-    # Memorizes any object in sight to short-term memory
-    def memorize_interests(self, coords):
-        for coord in coords:
-            for obj in GRID_OCCUPANCY.get(coord, []):
-                if obj is self:
-                    continue
-                if obj.tag == DOB and not obj.can_mate():
-                    continue
-                self.brain.update_memories(SHORT_TERM_MEMORY, obj)
-
     # Increments counters
     def increment(self):
         self.brain.age_memories()

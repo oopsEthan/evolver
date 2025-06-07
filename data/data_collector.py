@@ -1,6 +1,6 @@
 import json
 import copy
-from utilities.config import ACTIVE_DOBS, DOB, STARTING_DOB_POPULATION
+from utilities.config import ACTIVE_DOBS, DOB, STARTING_DOB_POPULATION, FEMALE
 
 class Data_Collector():
     def __init__(self):
@@ -40,7 +40,8 @@ class Data_Collector():
             self.metrics["death"][package["cause_of_death"]] += 1
 
     # Creates a snapshot of data
-    def generate_snapshot(self):
+    def generate_snapshot(self, tick):
+        print(f"Generating a snapshot at tick {tick}...")
         total = len(ACTIVE_DOBS) + self.metrics["death"]["deaths"]
 
         self.metrics["total"] = total
@@ -84,7 +85,7 @@ class Data_Collector():
         males = 0
 
         for dob in ACTIVE_DOBS:
-            if dob.sex == "F":
+            if dob.sex == FEMALE:
                 females += 1
             else:
                 males += 1

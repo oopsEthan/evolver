@@ -47,11 +47,11 @@ WATER_VALUE = 10
 ACTIVE_DOBS = []
 DOB = "dob"
 REPRODUCTION = "reproduction"
-SHORT_TERM = "short"
-LONG_TERM = "long"
 SHORT_TERM_MEMORY = "short"
 LONG_TERM_MEMORY = "long"
 DOBAMINE = "dobamine"
+FEMALE = "F"
+MALE = "M"
 
 # Dob Settings
 STARTING_DOB_POPULATION = 10
@@ -74,22 +74,24 @@ MEMORY_AGES = {
     LONG_TERM_MEMORY: 100,
 }
 FORGET_CHANCE_PER = 0.02 # per tick
+INTERACTIONS_TO_PROMOTE = 2
 
 # Age
 AGE_RATE = 1 # per tick
 BABY_DOB_SIZE = TILE_SIZE / 3
 ADULT_DOB_SIZE = TILE_SIZE / 2
 ADULT_AGE = 50
-ELDER_AGE = 150
+ELDER_AGE = 200
 DEATH_AGE = 300
 
-# Colors
+# Sex
 FEMALE_COLOR = (155, 0, 255)
 MALE_COLOR = (0, 10, 255)
 
 # Mating
 MATING_COOLDOWN = 10
 MATING_COOLDOWN_SPEED = 0.5 # gained per tick
+OFFSPRING_LIMIT = 2
 
 # endregion
 

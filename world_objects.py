@@ -39,7 +39,7 @@ class Simulation_Object:
 
     # Indicate what happens when a dob interacts with the object, by default it returns an energy value
     def interact_with(self):
-        return self.energy_value
+        return True
 
     def register(self, object_class: object, object_tag: str, db: list=None) -> None:
         """Registers the object to the simulation"""
@@ -118,7 +118,7 @@ class Food_Tree(Simulation_Object):
             return self.adjust_spawn(choice(valid))
 
         return choice(valid)
-
+    
 # Food is food that you eat food eat food
 class Food(Simulation_Object):
     _id = 0
@@ -143,7 +143,7 @@ class Food(Simulation_Object):
     # Food has to mark itself as eaten :(
     def interact_with(self):
         if self.tree is None:
-            return 0
+            return False
 
         remove_object_from_GO(self)
         self.tree.grown_foods.remove(self)

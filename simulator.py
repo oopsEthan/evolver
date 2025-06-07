@@ -47,7 +47,7 @@ class Simulator():
                     is_running = False
 
                 if self.tick % SNAPSHOT_FREQUENCY == 0:
-                    self.data_collector.generate_snapshot()
+                    self.data_collector.generate_snapshot(self.tick)
                 
                 # -- End of Tick --
                 # print(f"End of tick {self.tick}\n")
@@ -55,7 +55,7 @@ class Simulator():
                 self.clock.tick(TPS)
 
         # -- Post-simulation --
-        self.data_collector.generate_snapshot()
+        self.data_collector.generate_snapshot(self.tick)
         self.data_collector.save_snapshots_to_file()
         pygame.quit()
 
@@ -95,7 +95,7 @@ class Simulator():
     def populate_dobs(self) -> None:
         i = 0
         for _ in range(STARTING_DOB_POPULATION):
-                sex = "F" if i % 2 == 0 else "M"
+                sex = FEMALE if i % 2 == 0 else MALE
                 Dob(sex)
                 i += 1
     

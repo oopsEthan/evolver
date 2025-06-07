@@ -7,7 +7,6 @@ from random import random
 # TODO: Implement weight system (is this where dobamine goes?)
 # TODO: Make a communication system so dobs can tell other dobs where food is
 # TODO: Make dobs recognize food value and change their eating habits accordingly
-# TODO: Make dobs memory not decay in such a sudden manner, add reinforcement
 
 class Brain():
     def __init__(self):
@@ -15,10 +14,12 @@ class Brain():
 
         self.current_goal = {}
 
-        self.memory = {
-            SHORT_TERM_MEMORY: [],
-            LONG_TERM_MEMORY: []
-        }
+        ## Memories are in dict format with keys being:
+        # object: the specific object in the memory
+        # age: the age of the memory, decrements each tick
+        # interactions: the number of interactions of a memory
+        # type: long-term or short-term
+        self.memory = []
     
     # Function called to determine what a dob is going to do
     def think(self):
@@ -73,22 +74,97 @@ class Brain():
             "coords": coords
         }
     
-    # Memorize an object to memory.
-    def update_memories(self, memory_type, object):
-        already_memorized = any(m[0] == object for m in self.memory[memory_type])
+    # region ----- MEMORY FUNCTIONS -----
+
+    def attempt_to_memorize(self, coords: list) -> None:
+        """Determines if a coord is worth memorizing or reinforcing"""
+        for coord in coords:
+            for obj in GRID_OCCUPANCY.get(coord, []):
+                # Ignores memorizing itself and dobs who are not potential mates
+                if obj is self or (obj.tag == DOB and not obj.can_mate()):
+                    continue
+                # Changes food to their respective tree for memorization
+                if obj.tag == FOOD and obj.tree != None:
+                    obj = obj.tree
+                # Reinforces a memory a bit, if they've seen it before
+                if self.does_memory_exist(obj):
+                    self.reinforce_memory(obj, reinforcement=5)
+                    continue
+
+                self.add_new_memory(obj)
+
+    def reinforce_memory(self, target: object, reinforcement: int=0, interact: bool=False) -> None:
+        """Reinforces a memory by 'reinforcement' and increases interactions"""
+        if target.tag == FOOD and target.tree != None:
+            target = target.tree
+
+        for mem in self.memory:
+            if mem["object"] == target:
+                # Updates the age by the reinforcement parameter
+                mem["age"] = min((mem["age"] + reinforcement), MEMORY_AGES[mem["memory_type"]])
+
+                # If interact is being called, adds an interaction
+                if interact:
+                    mem["interactions"] += 1
+
+                # If interacted with enough, promotes memory by setting to long-term memory age, otherwise, just reinforces
+                if mem["interactions"] >= INTERACTIONS_TO_PROMOTE and mem["memory_type"] == SHORT_TERM_MEMORY:
+                    self.promote_memory(mem)
+
+    def age_memories(self) -> None:
+        """Ages memories by 1 per tick, if age == 0, the memory is forgotten"""
+        updated_memories = []
+
+        for mem in self.memory:
+            mem["age"] -= 1
+
+            if mem["age"] < 0:
+                chance_to_forget = min(1.0, abs(mem["age"]) * FORGET_CHANCE_PER) 
+                if random() < chance_to_forget:
+                    continue
+
+            updated_memories.append(mem)
+
+        self.memory = updated_memories
+
+    # -- MEMORY HELPER FUNCTIONS --
+
+    def promote_memory(self, mem: dict) -> None:
+        """Promotes a memory to long-term"""
+        mem["memory_type"] = LONG_TERM_MEMORY
+        mem["age"] = MEMORY_AGES[LONG_TERM_MEMORY]
+        mem["interactions"] = 0
+
+    def add_new_memory(self, obj: object) -> None:
+        """Adds a brand new memory to short-term"""
+        mem = {
+            "object": obj,
+            "age": MEMORY_AGES[SHORT_TERM_MEMORY],
+            "interactions": 0,
+            "memory_type": SHORT_TERM_MEMORY
+        }
+            
+        self.memory.append(mem)
+
+    def does_memory_exist(self, obj: object) -> bool:
+        """Checks memory for an object"""
+        return any(mem["object"] == obj for mem in self.memory)
+    
+    def get_memory(self, obj: object) -> tuple[dict, str]:
+        """Gets a memory and returns it's dict and memory type"""
+        for mem in self.memory:
+            if mem["object"] == obj:
+                return mem, mem["memory_type"]
         
-        new_memory = []
-        for m in self.memory[memory_type]:
-            obj_ref = m[0]
-            if obj_ref == object and not check_GO(obj_ref.grid_pos):
-                print(f"[Memory Cleanup] Forgetting {obj_ref.tag} #{getattr(obj_ref, 'id', '?')} — no longer at {obj_ref.grid_pos}")
-                continue
-            new_memory.append(m)
+        return None, None
 
-        self.memory[memory_type] = new_memory
-
-        if not already_memorized:
-            self.memory[memory_type].append((object, MEMORY_AGES[memory_type]))
+    def get_memories_by_tag(self, tag: str) -> list:
+        """Checks memories for tags, returns list prioritizing short-term first"""
+        short = [mem["object"] for mem in self.memory if mem["memory_type"] == SHORT_TERM_MEMORY and mem["object"].tag == tag]
+        long = [mem["object"] for mem in self.memory if mem["memory_type"] == LONG_TERM_MEMORY and mem["object"].tag == tag]
+        return short + long
+    
+    # endregion
     
     # region ----- HELPER FUNCTIONS -----
 
@@ -108,7 +184,13 @@ class Brain():
 
     # Get the closet food to the dob
     def get_closest_food(self):
-        matches = self.check_memories(FOOD)
+        matches = []
+
+        for tree in self.get_memories_by_tag(TREE):
+            if not tree.grown_foods:
+                continue
+            matches.extend(tree.grown_foods)
+
         if matches:
             target = min(matches, key=lambda m: self.dob.get_grid_distance_to(m.grid_pos))
             return target, target.grid_pos
@@ -117,7 +199,7 @@ class Brain():
 
     # Get the closet water to the dob
     def get_closest_water(self):
-        matches = self.check_memories(WATER)
+        matches = self.get_memories_by_tag(WATER)
 
         closest = None, None
         closest_dist = float('inf')
@@ -134,6 +216,7 @@ class Brain():
     # Get the closet opposite sex dob to the dob
     def get_closest_mate(self):
         matches = self.get_known_mates()
+
         if matches:
             target = min(matches, key=lambda m: self.dob.get_grid_distance_to(m.grid_pos))
             return target, target.grid_pos
@@ -159,33 +242,6 @@ class Brain():
         return urgency
     
     def get_known_mates(self):
-        return [obj for obj, _ in self.memory[SHORT_TERM_MEMORY] if obj.tag == DOB and obj.sex != self.dob.sex]
-
-    # Checks memories for target, short-term is prioritized
-    def check_memories(self, target):
-        short = [o for o, _ in self.memory[SHORT_TERM_MEMORY] if o.tag == target]
-        long = [o for o, _ in self.memory[LONG_TERM_MEMORY] if o.tag == target]
-        
-        return short + long
-
-    # TODO: Make this less flat and more dynamic!
-    # Ages memories by 1 per tick, if age == 0, the memory is forgotten
-    def age_memories(self):
-        for memory_type in self.memory:
-            updated_memories = []
-
-            for mem, age in self.memory[memory_type]:
-                age -= 1
-
-                if age < 0:
-                    chance_to_forget = min(1.0, abs(age) * FORGET_CHANCE_PER)  
-                    if random() < chance_to_forget:
-                        print(f"A dob forgot {mem}, lol!")
-                        continue
-                updated_memories.append((mem, age))
-
-            self.memory[memory_type] = updated_memories
-
-            # self.memory[memory_type] = [(mem, age - 1) for mem, age in self.memory[memory_type] if age > 1]
+        return [mem["object"] for mem in self.memory if mem["object"].tag == DOB and mem["object"].sex != self.dob.sex and mem["object"].can_mate()]
 
     # endregion
