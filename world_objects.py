@@ -21,10 +21,6 @@ class Simulation_Object:
                     break
         
         self.pixel_pos, self.grid_pos = relocate_object_on_GO(self, loc)
-
-    # def get_grid(self) -> tuple:
-    #     """Returns the grid coordinates (x,y) of the object"""
-    #     return to_grid(self.current_loc)
     
     def get_grid_distance_to(self, coords: tuple[int, int]) -> int:
         """Gets the grid distance between object and the target"""
@@ -45,54 +41,124 @@ class Simulation_Object:
     def interact_with(self):
         return self.energy_value
 
-    def register(self, object_class: object, object_tag: str, db: list) -> None:
+    def register(self, object_class: object, object_tag: str, db: list=None) -> None:
         """Registers the object to the simulation"""
         self.id = object_class._id
         object_class._id += 1
 
         self.tag = object_tag
-        self.db = db
-        db.append(self)
+
+        if db is not None:
+            self.db = db
+            db.append(self)
+
+class Food_Tree(Simulation_Object):
+    _id = 0
+
+    def __init__(self, starting_coords):
+        super().__init__()
+        self.register(Food_Tree, TREE, db=ACTIVE_TREES)
+        self.move_to(self.adjust_spawn(starting_coords))
+
+        self.grown_foods = []
+        self.create_initial_growth()
+        self.regrowth_chance = DEFAULT_FOOD_REGROWTH_CHANCE
+
+    def exist(self, surface):
+        pygame.draw.circle(surface, "brown", self.pixel_pos, TILE_SIZE/2)
+
+        if len(self.grown_foods) < FOOD_TREE_MAX:
+            self.attempt_to_grow()
+        
+        for food in self.grown_foods:
+            food.exist(surface)
+    
+    def attempt_to_grow(self):
+        roll = random() + 0.1
+
+        if roll < self.regrowth_chance:
+            print(f"Food ({self.id}) regrew at {self.regrowth_chance*100:.1f}%.")
+            self.grow_food()
+            self.regrowth_chance = DEFAULT_FOOD_REGROWTH_CHANCE
+            return False
+        
+        self.regrowth_chance += 0.005
+        return True
+
+    def get_growth_spot(self) -> tuple[int, int]:
+        potential_spots = get_adjacent_tiles(self.grid_pos, diagonals=False, avoid_occupied=True)
+        if not potential_spots:
+            print(f"{self.id} has no potential grow spots!")
+            return None
+        return choice(potential_spots)
+
+    def create_initial_growth(self):
+        for _ in range(FOOD_TREE_MAX):
+            self.grow_food(skip=True)
+    
+    def grow_food(self, skip: bool=False):
+        coords = self.get_growth_spot()
+
+        for food in self.grown_foods:
+            if food.grid_pos == coords:
+                print(f"⚠️ Skipping growth at {coords} — already have Food ({food.id}) there")
+                return
+        
+        food = Food(starting_coords=coords, designated_tree=self, skip_growth=skip)
+        self.grown_foods.append(food)
+    
+    def adjust_spawn(self, coords):
+        adjacents = get_adjacent_tiles(coords, diagonals=False, avoid_occupied=False)
+        valid = [tile for tile in adjacents if within_bounds(tile) and not tile_occupied(tile)]
+
+        if not valid:
+            return None
+        
+        if len(valid) <= 2:
+            return self.adjust_spawn(choice(valid))
+
+        return choice(valid)
 
 # Food is food that you eat food eat food
 class Food(Simulation_Object):
     _id = 0
 
-    def __init__(self):
+    def __init__(self, starting_coords, designated_tree, skip_growth=False):
         super().__init__()
-        self.register(Food, FOOD, ACTIVE_FOOD)
-        
-        self.eaten = False
+        self.register(Food, FOOD)
+        self.move_to(starting_coords)
+        self.tree = designated_tree
+        self.size = 4
         self.regrowth_chance = DEFAULT_FOOD_REGROWTH_CHANCE
         self.energy_value = MIN_FOOD_VALUE
 
-    def exist(self, surface):
-        if not self.eaten:
-            pygame.draw.circle(surface, "red", self.pixel_pos, TILE_SIZE/2)
-            self.increase_value()
+        if skip_growth:
+            self.energy_value = MAX_FOOD_VALUE
+            self.size = 2
 
-        # Food regrows, every tick counts the cooldown down 1
-        else:
-            self.eaten = self.try_to_regrow()
+    def exist(self, surface):
+        pygame.draw.circle(surface, "red", self.pixel_pos, TILE_SIZE/self.size)
+        self.increase_value()
 
     # Food has to mark itself as eaten :(
     def interact_with(self):
-        self.eaten = True
-        return super().interact_with()
+        if self.tree is None:
+            return 0
 
-    def try_to_regrow(self) -> bool:
-        if random() < self.regrowth_chance:
-            print(f"Food regrew at {self.regrowth_chance*10:.1f}%.")
-            self.regrowth_chance = DEFAULT_FOOD_REGROWTH_CHANCE
-            self.energy_value = MIN_FOOD_VALUE
-            return False
-        
-        self.regrowth_chance += 0.01
-        return True
+        remove_object_from_GO(self)
+        self.tree.grown_foods.remove(self)
+
+        self.tree = None
+        return super().interact_with()
 
     def increase_value(self):
         if self.energy_value < MAX_FOOD_VALUE:
-            self.energy_value += 1
+            self.energy_value += FOOD_GROWTH_SPEED
+
+            ratio = (MAX_FOOD_VALUE - self.energy_value) / (MAX_FOOD_VALUE - MIN_FOOD_VALUE)
+
+            # size ∈ [2, 4], inversely scaled with energy_value
+            self.size = 2 + (4 - 2) * ratio  # or: self.size = 2 + 2 * ratio
 
 # Worter
 class Water(Simulation_Object):
@@ -100,7 +166,7 @@ class Water(Simulation_Object):
 
     def __init__(self, starting_coords, chance_to_cascade=1):
         super().__init__()
-        self.register(Water, WATER, ACTIVE_WATER)
+        self.register(Water, WATER, db=ACTIVE_WATER)
         self.move_to(starting_coords)
 
         self.energy_value = WATER_VALUE

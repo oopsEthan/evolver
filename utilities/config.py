@@ -14,13 +14,16 @@ MAX_GRID_Y = MAX_Y // TILE_SIZE
 # region  ----- FOOD -----
 
 # Food Constants
-ACTIVE_FOOD = []
+ACTIVE_TREES = []
+TREE = "tree"
 FOOD = "food"
 
 # Food Settings
-STARTING_FOOD_COUNT = 15
-DEFAULT_FOOD_REGROWTH_CHANCE = 0.01
-MIN_FOOD_VALUE = 200
+STARTING_TREE_COUNT = 5
+FOOD_TREE_MAX = 3 
+DEFAULT_FOOD_REGROWTH_CHANCE = -0.05 # % per tick
+FOOD_GROWTH_SPEED = 5 # per tick
+MIN_FOOD_VALUE = 150
 MAX_FOOD_VALUE = 300
 
 # endregion
@@ -55,11 +58,11 @@ STARTING_DOB_POPULATION = 10
 
 DEFAULT_MAX_CALORIES = 1000
 HUNGER_THRESHHOLD = 0.8
-FOOD_COST = 25
+FOOD_COST = 5 # per move
 
 DEFAULT_MAX_HYDRATION = 100
 THIRST_THRESHHOLD = 0.8
-WATER_COST = 1
+WATER_COST = 1 # per move
 
 DEFAULT_DOBAMINE = 100
 LOW_DOBAMINE_THRESHHOLD = 0.4
@@ -68,8 +71,8 @@ DOBAMINE_EXPLORATION_REWARD = 1
 
 # Memory ages affect how long dobs remember things, removing 1 per tick
 MEMORY_AGES = {
-    "short": 10,
-    "long": 500,
+    "short": 20,
+    "long": 100,
 }
 
 # Age
@@ -78,7 +81,7 @@ BABY_DOB_SIZE = TILE_SIZE / 3
 ADULT_DOB_SIZE = TILE_SIZE / 2
 ADULT_AGE = 50
 ELDER_AGE = 150
-DEATH_AGE = 200
+DEATH_AGE = 300
 
 # Colors
 FEMALE_COLOR = (155, 0, 255)
@@ -99,7 +102,6 @@ SNAPSHOT_FREQUENCY = 50
 
 # region ----- GENERAL -----
 
-ACTIVE_OBJECTS = [ACTIVE_DOBS, ACTIVE_FOOD, ACTIVE_WATER]
 GRID_OCCUPANCY = {}
 
 # Cardinal directions on grid

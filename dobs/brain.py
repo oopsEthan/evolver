@@ -1,4 +1,5 @@
 from utilities.config import *
+from utilities.utils import *
 from random import random
 
 # TODO: Add aggressive vs passive search modes based on urgency
@@ -43,8 +44,6 @@ class Brain():
 
     # Evaluates what a dob needs most at any given time
     def determine_goal(self):
-        target, coords = None, None
-
         needs = self.get_urgencies()
         most_urgent = max(needs, key=needs.get)
     
@@ -59,7 +58,6 @@ class Brain():
         
         if not target or not coords:
             exploration_weight = self.dob.needs_dobamine()
-            goal = None
 
             if random() < exploration_weight:
                 target, coords = None, self.dob.get_tile_in_sight(need_dobamine=True)
@@ -67,18 +65,24 @@ class Brain():
             else:
                 target, coords = None, self.dob.get_tile_in_sight()
 
-        if target:
-            goal = target.tag
-
         return {
             "target": target,
-            "coords": coords,
-            "goal": goal
+            "coords": coords
         }
     
     # Memorize an object to memory.
-    def memorize(self, memory_type, object):
+    def update_memories(self, memory_type, object):
         already_memorized = any(m[0] == object for m in self.memory[memory_type])
+        
+        new_memory = []
+        for m in self.memory[memory_type]:
+            obj_ref = m[0]
+            if obj_ref == object and not check_GO(obj_ref.grid_pos):
+                print(f"[Memory Cleanup] Forgetting {obj_ref.tag} #{getattr(obj_ref, 'id', '?')} — no longer at {obj_ref.grid_pos}")
+                continue
+            new_memory.append(m)
+
+        self.memory[memory_type] = new_memory
 
         if not already_memorized:
             self.memory[memory_type].append((object, MEMORY_AGES[memory_type]))

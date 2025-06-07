@@ -1,5 +1,5 @@
 import pygame
-from utilities.config import TILE_SIZE, ACTIVE_OBJECTS, MAX_GRID_X, MAX_GRID_Y, GRID_DIAGONALS, GRID_CARDINALS, GRID_OCCUPANCY
+from utilities.config import TILE_SIZE, MAX_GRID_X, MAX_GRID_Y, GRID_DIAGONALS, GRID_CARDINALS, GRID_OCCUPANCY
 
 def to_grid(vec2: pygame.Vector2) -> tuple[int, int]:
     """Converts a pixel-based Vector2 position to (x, y) grid coordinates"""
@@ -42,6 +42,12 @@ def add_object_to_GO(obj: object, coords: tuple[int, int]):
         GRID_OCCUPANCY[coords] = []
 
     GRID_OCCUPANCY[coords].append(obj)
+
+def check_GO(coords: tuple[int, int]):
+    """Checks the GRID_OCCUPANCY for a tile"""
+    if coords in GRID_OCCUPANCY:
+        return True
+    return False
 
 def get_adjacent_tiles(grid_coords: tuple[int, int],
                        diagonals: bool=True,

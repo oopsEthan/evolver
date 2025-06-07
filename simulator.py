@@ -35,7 +35,7 @@ class Simulator():
             if not paused:
                 # -- Object-handling --
                 self.tick_objects(ACTIVE_WATER)
-                self.tick_objects(ACTIVE_FOOD)
+                self.tick_objects(ACTIVE_TREES)
                 self.tick_dobs()
 
                 # -- Debugging --
@@ -63,8 +63,8 @@ class Simulator():
     def initialize_sim(self) -> None:
         self.place_water_sources()
         print(f"Water placed, totaling: {len(ACTIVE_WATER)}")
-        self.place_food()
-        print(f"Food placed, totaling: {len(ACTIVE_FOOD)}")
+        self.place_food_trees()
+        print(f"Trees placed, totaling: {len(ACTIVE_TREES)}")
         self.populate_dobs()
         print(f"Dobs placed, totaling: {len(ACTIVE_DOBS)}")
 
@@ -79,10 +79,17 @@ class Simulator():
 
             Water(starting_coords=(x, y))
 
-    # Places food randomly
-    def place_food(self) -> None:
-        for _ in range(STARTING_FOOD_COUNT):
-            Food()
+    # Places food trees randomly
+    def place_food_trees(self) -> None:
+        grid_spacing_x = MAX_GRID_X // 3.5  # 4 = spacing gaps (3 placements)
+        grid_spacing_y = MAX_GRID_Y // 3.5
+
+        for i in range(1, 4):  # 1 to 3
+            for j in range(1, 4):
+                x = i * grid_spacing_x + randint(-2, 2)
+                y = j * grid_spacing_y + randint(-2, 2)
+                Food_Tree(starting_coords=(x, y))
+
 
     # Populates dobs, ensuring an even split of sexes
     def populate_dobs(self) -> None:

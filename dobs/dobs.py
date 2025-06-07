@@ -10,7 +10,7 @@ class Dob(Simulation_Object):
 
     def __init__(self, sex=None, mom=None, dad=None):
         super().__init__()
-        self.register(Dob, DOB, ACTIVE_DOBS)
+        self.register(Dob, DOB, db=ACTIVE_DOBS)
         self.generate_biology(sex, mom, dad)
         self.generate_needs(DEFAULT_MAX_CALORIES, DEFAULT_MAX_HYDRATION, DEFAULT_DOBAMINE)
 
@@ -80,7 +80,7 @@ class Dob(Simulation_Object):
             self.current_calories += target.interact_with()
         
         elif target.tag == WATER:
-            self.brain.memorize(LONG_TERM, target)
+            self.brain.update_memories(LONG_TERM, target)
             self.current_dobamine += 5
             self.thirst_threshhold = 0.4
             self.current_hydration += target.interact_with()
@@ -101,7 +101,6 @@ class Dob(Simulation_Object):
                     self.tiles_in_vision.append((x, y))
 
         self.memorize_interests(self.tiles_in_vision)
-        return self.tiles_in_vision
 
     # When dobs do something that requires energy, this is called to expend it
     def expend_energy(self, factor):
@@ -260,7 +259,7 @@ class Dob(Simulation_Object):
                     continue
                 if obj.tag == DOB and not obj.can_mate():
                     continue
-                self.brain.memorize(SHORT_TERM_MEMORY, obj)
+                self.brain.update_memories(SHORT_TERM_MEMORY, obj)
 
     # Increments counters
     def increment(self):
