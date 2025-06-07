@@ -43,13 +43,17 @@ WATER_VALUE = 10
 
 # region ----- DOBS -----
 
-# Dob Constants
+## Dob Constants
 ACTIVE_DOBS = []
 DOB = "dob"
 REPRODUCTION = "reproduction"
+# Memory
 SHORT_TERM_MEMORY = "short"
 LONG_TERM_MEMORY = "long"
 DOBAMINE = "dobamine"
+AGGRESSIVE = "aggressive"
+PASSIVE = "passive"
+# Sex
 FEMALE = "F"
 MALE = "M"
 
@@ -67,7 +71,9 @@ WATER_COST = 1 # per move
 DEFAULT_DOBAMINE = 100
 LOW_DOBAMINE_THRESHHOLD = 0.4
 HIGH_DOBAMINE_THRESHHOLD = 0.8
-DOBAMINE_EXPLORATION_REWARD = 1
+
+# Danger threshhhold determines at what % calories a dob will start aggressively searching
+DANGER_THRESHHOLD = 0.3
 
 MEMORY_AGES = {
     SHORT_TERM_MEMORY: 20,

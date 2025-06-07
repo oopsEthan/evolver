@@ -24,8 +24,8 @@ class Data_Collector():
                 "avg_age": 0
             },
             "sex": {
-                "perc_females": 0.0,
-                "perc_males": 0.0
+                "females": 0.0,
+                "males": 0.0
             }
         }
 
@@ -48,7 +48,7 @@ class Data_Collector():
         self.metrics["alive"] = len(ACTIVE_DOBS)
         self.metrics["births"] = total - STARTING_DOB_POPULATION
         self.metrics["death"] = self.get_death_metrics()
-        self.metrics["averages"] = self.get_average_stats()
+        self.metrics["averages"] = self.get_average_stats_INT() | self.get_average_stats_BOOL()
         self.metrics["sex"] = self.get_sex_stats()
 
         snapshot = copy.deepcopy(self.metrics)
@@ -68,7 +68,7 @@ class Data_Collector():
 
     # Returns a snapshot of current births
 
-    def get_average_stats(self) -> dict:
+    def get_average_stats_INT(self) -> dict:
         keys = ["calories", "hydration", "dobamine", "age"]
         totals = {key: 0 for key in keys}
 
@@ -79,6 +79,20 @@ class Data_Collector():
             
         count = len(ACTIVE_DOBS)
         return {f"avg_{key}": round((totals[key] / count), 1) for key in keys} if count > 0 else {}
+    
+    def get_average_stats_BOOL(self) -> dict:
+        keys = ["water_security", "food_security"]
+        totals = {key: 0 for key in keys}
+
+        for dob in ACTIVE_DOBS:
+            stats = dob.collect_stats()
+            for key in keys:
+                if stats[key]:
+                    totals[key] += 1
+            
+        count = len(ACTIVE_DOBS)
+        return {f"avg_{key}": round((totals[key] / count), 1) for key in keys} if count > 0 else {}
+    
     
     def get_sex_stats(self) -> dict:
         females = 0
@@ -92,8 +106,8 @@ class Data_Collector():
 
         if females > 0 and males > 0:
             return {
-                "females": females / (males + females),
-                "males": males / (males + females)
+                "females": round(females / (males + females), 1),
+                "males": round(males / (males + females), 1)
             }
         
         elif males > 0 and females == 0:

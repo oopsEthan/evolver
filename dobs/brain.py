@@ -14,6 +14,9 @@ class Brain():
 
         self.current_goal = {}
 
+        self.max_dobamine = DEFAULT_DOBAMINE
+        self.current_dobamine = DEFAULT_DOBAMINE / 2
+
         ## Memories are in dict format with keys being:
         # object: the specific object in the memory
         # age: the age of the memory, decrements each tick
@@ -25,11 +28,12 @@ class Brain():
     def think(self):
         goal = self.determine_goal()
         
-        if not self.current_goal:
+        if not self.current_goal or not self.current_goal.get("coords"):
             self.current_goal = goal
 
         coords = self.current_goal.get("coords")
         target = self.current_goal.get("target")
+
 
         # If the dob is adjacent to coords (target), interact with it
         if self.dob.is_adjacent_to(coords) and target:
@@ -61,14 +65,15 @@ class Brain():
             target, coords = self.get_closest_mate()
         
         if not target or not coords:
-            exploration_weight = self.dob.needs_dobamine()
-
-            if random() < exploration_weight:
-                target, coords = None, self.dob.get_tile_in_sight(need_dobamine=True)
+            exploration_mode = self.get_exploration_mode()
+            wander_chance = max(0.2, 1.0 * (1 - (self.current_dobamine / self.max_dobamine))**2)
+            
+            if (exploration_mode == PASSIVE and random() < wander_chance) or exploration_mode == AGGRESSIVE:
+                target, coords = None, self.dob.get_tile_in_sight(exploration_mode)
             
             else:
-                target, coords = None, self.dob.get_tile_in_sight()
-
+                target, coords = None, None
+                
         return {
             "target": target,
             "coords": coords
@@ -158,7 +163,7 @@ class Brain():
         
         return None, None
 
-    def get_memories_by_tag(self, tag: str) -> list:
+    def has_memory_of(self, tag: str) -> list:
         """Checks memories for tags, returns list prioritizing short-term first"""
         short = [mem["object"] for mem in self.memory if mem["memory_type"] == SHORT_TERM_MEMORY and mem["object"].tag == tag]
         long = [mem["object"] for mem in self.memory if mem["memory_type"] == LONG_TERM_MEMORY and mem["object"].tag == tag]
@@ -166,6 +171,60 @@ class Brain():
     
     # endregion
     
+    # region ----- DOBAMINE FUNCTIONS -----
+
+    def get_dobamine_gain(self) -> int:
+        dobamine_gain = -3
+
+        if self.is_food_secure():
+            dobamine_gain += 1
+        
+        if self.is_water_secure():
+            dobamine_gain += 1
+        
+        self.send_dobamine_gain(dobamine_gain)
+
+    def send_dobamine_gain(self, gain: int) -> None:
+        self.current_dobamine = max(0, min(self.max_dobamine, self.current_dobamine + gain))
+
+    # endregion
+
+    # region ----- MATING FUNCTIONS -----
+
+        # Determines a dobs urgency
+    def determine_sexual_urge(self):
+        if self.dob.can_mate() and self.is_food_secure() and self.is_water_secure():
+            the_urge = (self.hunger_ratio + self.thirst_ratio) / 2
+
+            nearby_mate = self.get_known_mates()
+
+            if nearby_mate:
+                urgency = min(1.0, the_urge + 0.3)
+            
+            else:
+                urgency = the_urge
+        
+        else:
+            urgency = 0.0
+
+        return urgency
+    
+    # Locates any known mates
+    def get_known_mates(self):
+        return [mem["object"] for mem in self.memory if mem["object"].tag == DOB and mem["object"].sex != self.dob.sex and mem["object"].can_mate()]
+
+    # Get the closet opposite sex dob to the dob
+    def get_closest_mate(self):
+        matches = self.get_known_mates()
+
+        if matches:
+            target = min(matches, key=lambda m: self.dob.get_grid_distance_to(m.grid_pos))
+            return target, target.grid_pos
+
+        return None, None
+    
+    # endregion
+
     # region ----- HELPER FUNCTIONS -----
 
     # Determines urgencies for decision making
@@ -182,11 +241,20 @@ class Brain():
             REPRODUCTION: self.determine_sexual_urge()
         }
 
+    def get_exploration_mode(self) -> str:
+        low_calories = self.dob.current_calories < self.dob.max_calories * DANGER_THRESHHOLD
+        low_hydration = self.dob.current_hydration < self.dob.max_hydration * DANGER_THRESHHOLD
+
+        if (low_calories and not self.is_food_secure()) or (low_hydration and not self.is_water_secure()):
+            return AGGRESSIVE
+        
+        return PASSIVE
+
     # Get the closet food to the dob
     def get_closest_food(self):
         matches = []
 
-        for tree in self.get_memories_by_tag(TREE):
+        for tree in self.has_memory_of(TREE):
             if not tree.grown_foods:
                 continue
             matches.extend(tree.grown_foods)
@@ -197,9 +265,12 @@ class Brain():
 
         return None, None
 
+    def is_food_secure(self) -> bool:
+        return len(self.has_memory_of(FOOD)) > 0 or self.dob.current_calories > self.dob.max_calories * 0.6
+    
     # Get the closet water to the dob
     def get_closest_water(self):
-        matches = self.get_memories_by_tag(WATER)
+        matches = self.has_memory_of(WATER)
 
         closest = None, None
         closest_dist = float('inf')
@@ -213,35 +284,7 @@ class Brain():
 
         return closest
 
-    # Get the closet opposite sex dob to the dob
-    def get_closest_mate(self):
-        matches = self.get_known_mates()
-
-        if matches:
-            target = min(matches, key=lambda m: self.dob.get_grid_distance_to(m.grid_pos))
-            return target, target.grid_pos
-
-        return None, None
+    def is_water_secure(self) -> bool:
+        return len(self.has_memory_of(WATER)) > 0 or self.dob.current_hydration > self.dob.max_hydration * 0.6
     
-    # Determines a dobs urgency
-    def determine_sexual_urge(self):
-        if self.dob.can_mate():
-            the_urge = (self.hunger_ratio + self.thirst_ratio) / 2
-
-            nearby_mate = self.get_known_mates()
-
-            if nearby_mate:
-                urgency = min(1.0, the_urge + 0.3)
-            
-            else:
-                urgency = the_urge
-        
-        else:
-            urgency = 0.0
-
-        return urgency
-    
-    def get_known_mates(self):
-        return [mem["object"] for mem in self.memory if mem["object"].tag == DOB and mem["object"].sex != self.dob.sex and mem["object"].can_mate()]
-
     # endregion
