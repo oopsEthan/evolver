@@ -44,7 +44,7 @@ class Dob(Simulation_Object):
         if not tile_occupied(next_step):
             self.current_path.pop(0)
             self.move_to(next_step)
-            self.expend_energy(1)
+            self.expend_energy(calories=1, hydration=1)
             return True
         
         else:
@@ -75,8 +75,8 @@ class Dob(Simulation_Object):
     # endregion
 
     # Defines a variety of actions based on the object (target) being interacted with
-    def interact(self, target: object) -> None:
-        if target.tag != DOB and target.interact_with():
+    def interact(self, target: object, request: str) -> None:
+        if target.tag != DOB and request == EAT:
             if target.tag == FOOD:
                 self.current_calories += target.energy_value
 
@@ -86,10 +86,14 @@ class Dob(Simulation_Object):
             self.brain.send_dobamine_gain(5)
             self.brain.current_goal = {}
 
-        elif target.tag == DOB:
+        elif target.tag == DOB and request == MATE:
             if self.sex == MALE and self.can_mate():
                 self.attempt_to_mate(target)
         
+        elif target.tag == DOB and request == COMMUNICATE:
+            self.share_memory(target)
+            # TODO: create share_memory
+
         if self.brain.does_memory_exist(target):
                 self.brain.reinforce_memory(target, reinforcement=5, interact=True)
     
@@ -106,54 +110,69 @@ class Dob(Simulation_Object):
         self.brain.attempt_to_memorize(self.tiles_in_vision)
 
     # When dobs do something that requires energy, this is called to expend it
-    def expend_energy(self, factor):
-            self.current_calories -= (FOOD_COST * factor) if self.age >= ADULT_AGE else (FOOD_COST * (factor * 0.5))
-            self.current_hydration -=  (WATER_COST * factor) if self.age >= ADULT_AGE else (WATER_COST * (factor * 0.5))
+    def expend_energy(self, calories, hydration):
+            self.current_calories -= (calories * FOOD_MULTIPLIER) if self.age >= ADULT_AGE else (calories * (FOOD_MULTIPLIER * 0.5))
+            self.current_hydration -=  (hydration * WATER_MULTIPLIER) if self.age >= ADULT_AGE else (calories * (WATER_MULTIPLIER * 0.5))
 
-            if self.current_calories == 0 or self.current_hydration == 0:
+            if self.current_calories <= 0 or self.current_hydration <= 0:
                 self.die()
     
     # Mating creates a new dob with a combo of mom and dad's stats
     # Mating is only possible if both dobs are mating age and not on cooldown
     def attempt_to_mate(self, female):
-        if female.can_mate() and female.determine_viable_mate(self):
+        if not self.determine_viable_mate(female):
+            self.brain.remember_bad_mate(female)
+            female.brain.remember_bad_mate(self)
+            return
+
+        if female.can_mate() and (female.determine_viable_mate(self) or 
+                                  female.brain.is_partnered() == self):
+            
             dob = Dob(mom=female, dad=self)
             dob.move_to(female.grid_pos)
             
             female.mating_cooldown = MATING_COOLDOWN
-            female.expend_energy(5)
+            female.expend_energy(calories=50, hydration=2) # * FOOD_COST and * WATER_COST
             female.brain.send_dobamine_gain(10)
             female.offspring += 1
 
             self.mating_cooldown = MATING_COOLDOWN
             self.brain.send_dobamine_gain(10)
-            self.expend_energy(3)
+            self.expend_energy(calories=50, hydration=3)
+
+            self.brain.form_partnership(female)
+            female.brain.form_partnership(self)
 
             self.brain.current_goal = {}
             return
         
+        elif not female.determine_viable_mate(self):
+            female.brain.remember_bad_mate(self)
+            self.brain.remember_bad_mate(female)
+            self.brain.current_goal = {}
+            return
+
         else:
             self.brain.current_goal = {}
-
             female.mating_cooldown += MATING_COOLDOWN/2
             self.mating_cooldown += MATING_COOLDOWN/2
     
     # Only females should call this
-    def determine_viable_mate(self, male):
+    def determine_viable_mate(self, potential_mate: object):
         chance_to_mate = 0.0
 
-        if male.death_age >= self.death_age:
-            chance_to_mate += 0.3
+        if potential_mate.death_age >= self.death_age:
+            chance_to_mate += 0.35
         
-        if male.max_calories >= self.max_calories:
-            chance_to_mate += 0.3
+        if potential_mate.max_calories >= self.max_calories:
+            chance_to_mate += 0.35
         
-        if male.max_hydration >= self.max_hydration:
-            chance_to_mate += 0.3
+        if potential_mate.max_hydration >= self.max_hydration:
+            chance_to_mate += 0.35
 
-        result = random() < chance_to_mate + 0.1
+        result = random() < chance_to_mate + 0.05
 
-        print(f"[Mate Check] F:{self.id} M:{male.id} → chance: {chance_to_mate:.2f} → {'✔' if result else '✖'}")
+        # print(f"[Mate Check] F:{self.id} M:{male.id} → chance: {chance_to_mate:.2f} → {'✔' if result else '✖'}")
 
         return result
     
@@ -242,6 +261,14 @@ class Dob(Simulation_Object):
 
         elif sex == MALE:
             self.color = MALE_COLOR
+        
+        mutation = (
+            max(0, self.color[0] + randint(*COLOR_VARIATION)),
+            max(0, self.color[1] + randint(*COLOR_VARIATION)),
+            self.color[2]
+        )
+
+        self.color = mutation
     
     def can_mate(self) -> bool:
         """Checks ability to mate"""
@@ -288,7 +315,7 @@ class Dob(Simulation_Object):
         self.brain.age_memories()
 
         if tick % 5 == 0: # every 5 ticks
-            self.expend_energy(2)
+            self.expend_energy(calories=5, hydration=1)
             self.brain.get_dobamine_gain()
 
         if self.mating_cooldown > 0:

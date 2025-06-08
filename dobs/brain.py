@@ -35,10 +35,11 @@ class Brain():
 
         coords = self.current_goal.get("coords")
         target = self.current_goal.get("target")
+        request = self.current_goal.get("request")
 
         # If the dob is adjacent to coords (target), interact with it
         if self.dob.is_adjacent_to(coords) and target:
-            self.dob.interact(target)
+            self.dob.interact(target, request)
             self.current_goal = {}
             return False
 
@@ -61,12 +62,19 @@ class Brain():
         # Attempts to fulfill the most urgent needs
         if most_urgent == WATER:
             target, coords = self.get_closest_water() # can return (None, None) if no known water
+            request = EAT
         elif most_urgent == FOOD:
             target, coords = self.get_closest_food() # can return (None, None) if no known food
+            request = EAT
         elif most_urgent == REPRODUCTION:
             target, coords = self.get_closest_mate() # can return (None, None) if no known mates
+            request = MATE
         elif most_urgent == POPULATION_DENSITY:
             target, coords = None, self.dob.get_tile_in_sight(AGGRESSIVE_SEARCH)
+        elif most_urgent == DOBAMINE() and self.is_partnered():
+            partner = self.is_partnered()
+            target, coords = partner, partner.grid_pos
+            request = COMMUNICATE 
 
         # If nothing was found, explore based on needs, unless it's a child, then it follows it's mom
         if not coords:
@@ -77,7 +85,8 @@ class Brain():
 
         return {
             "target": target,
-            "coords": coords
+            "coords": coords,
+            "requests": request
         }
     
     def explore(self) -> str:
@@ -92,7 +101,10 @@ class Brain():
         
         # If no explore mode is valid, return no coords
         return None, None
-
+    def share_memory(self, target):
+        # TODO: for memory in memory, get memory value to partner, share
+        pass
+    
     def get_chance_to_wander(self) -> float:
         """Get a dob's chance to wander, increases with lower dobamine"""
         minimum_cap = 0.2
@@ -117,7 +129,7 @@ class Brain():
                     self.reinforce_memory(obj, reinforcement=5)
                     continue
 
-                self.add_new_memory(obj)
+                self.add_new_memory(obj, SHORT_TERM_MEMORY)
 
     def reinforce_memory(self, target: object, reinforcement: int=0, interact: bool=False) -> None:
         """Reinforces a memory by 'reinforcement' and increases interactions"""
@@ -142,14 +154,15 @@ class Brain():
         updated_memories = []
 
         for mem in self.memory:
-            mem["age"] -= 1
+            if mem["memory_type"] != PERMANENT_TERM_MEMORY:
+                mem["age"] -= 1
 
-            if mem["age"] < 0:
-                chance_to_forget = min(1.0, abs(mem["age"]) * FORGET_CHANCE_PER) 
-                if random() < chance_to_forget:
-                    continue
+                if mem["age"] < 0:
+                    chance_to_forget = min(1.0, abs(mem["age"]) * FORGET_CHANCE_PER) 
+                    if random() < chance_to_forget:
+                        continue
 
-            updated_memories.append(mem)
+                updated_memories.append(mem)
 
         self.memory = updated_memories
 
@@ -162,14 +175,16 @@ class Brain():
         mem["age"] = MEMORY_AGES[LONG_TERM_MEMORY]
         mem["interactions"] = 0
 
-    def add_new_memory(self, obj: object) -> None:
+    def add_new_memory(self, obj: object, memory_type: str) -> None:
         """Adds a brand new memory to short-term"""
         self.send_dobamine_gain()
+
         mem = {
             "object": obj,
-            "age": MEMORY_AGES[SHORT_TERM_MEMORY],
+            "age": MEMORY_AGES[memory_type],
             "interactions": 0,
-            "memory_type": SHORT_TERM_MEMORY
+            "memory_type": memory_type,
+            "tag": obj.tag
         }
             
         self.memory.append(mem)
@@ -249,12 +264,18 @@ class Brain():
 
         return urgency
     
-    def get_known_mates(self):
-        """Checks memory for any known mates"""
+    def get_known_mates(self) -> list:
+        """Checks memory for any known mates or returns if there is a partner"""
+        for mem in self.memory:
+            if mem["tag"] == "partner":
+                return [mem["object"]]
+            
         return [mem["object"] for mem in self.memory 
                 if mem["object"].tag == DOB and
                 mem["object"].sex != self.dob.sex and
-                mem["object"].can_mate()]
+                mem["object"].can_mate() and
+                mem["tag"] != "bad_mate" and
+                not mem["object"].brain.is_partnered()]
 
     def get_closest_mate(self):
         """Gets the closest viable mate to the dob"""
@@ -266,6 +287,27 @@ class Brain():
 
         return None, None
     
+    def remember_bad_mate(self, bad_mate):
+        """Remembers a bad mate so they will not attempt mating again"""
+        for mem in self.memory:
+            if mem["object"] == bad_mate:
+                mem["tag"] = "bad_mate"
+                mem["memory_type"] = PERMANENT_TERM_MEMORY
+                return
+    
+    def form_partnership(self, partner):
+        for mem in self.memory:
+            if mem["object"] == partner:
+                mem["tag"] = "partner"
+                mem["memory_type"] = PERMANENT_TERM_MEMORY
+                return
+    
+    def is_partnered(self):
+        for mem in self.memory:
+            if mem["tag"] == "partner":
+                return mem["object"]
+        return False
+
     # endregion
 
     # region ----- GENERAL URGENCY FUNCTIONS -----
@@ -279,16 +321,27 @@ class Brain():
         self.thirst_urgency = 1 - self.thirst_ratio
         self.hunger_urgency = 1 - self.hunger_ratio
 
-        food_security = 0.8 if self.is_food_secure() else 1.0
-        water_security = 0.8 if self.is_water_secure() else 1.0
+        food_security = 0.6 if self.is_food_secure() else 1.0
+        water_security = 0.6 if self.is_water_secure() else 1.0
+
+        no_more_offspring = 1.0
+        # TODO: Make dobamine selections more modular
+        dobamine = 0.0
+        if self.is_partnered() and self.has_full_family():
+            no_more_offspring = 0.0
+            dobamine = 1.0
 
         return {
             WATER: self.thirst_urgency * water_security,
             FOOD: self.hunger_urgency * food_security,
-            REPRODUCTION: self.determine_sexual_urge(),
-            POPULATION_DENSITY: self.determine_pop_density_urge()
+            REPRODUCTION: self.determine_sexual_urge() * no_more_offspring,
+            POPULATION_DENSITY: self.determine_pop_density_urge(),
+            DOBAMINE: self.determine_dobamine_needs() * dobamine
         }
 
+    def has_full_family(self):
+        return self.dob.offspring == OFFSPRING_LIMIT or self.is_partnered().offspring == OFFSPRING_LIMIT
+    
     def determine_pop_density_urge(self):
         """Determines if nearby density above [CROWDING_THRESHHOLD]%, if so, desire to move away grows"""
         visible_dobs = sum(
@@ -301,6 +354,10 @@ class Brain():
 
         return (density_ratio - CROWDING_THRESHHOLD) * CROWDING_SCALING if density_ratio > CROWDING_THRESHHOLD else 0.0
 
+    def determine_dobamine_needs(self):
+        dobamine_ratio = self.current_dobamine / self.max_dobamine
+        return min(0.2, 1 - dobamine_ratio)
+    
     # endregion
 
     # region ----- FOOD BRAIN FUNCTIONS -----

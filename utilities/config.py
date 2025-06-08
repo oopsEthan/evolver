@@ -50,11 +50,16 @@ REPRODUCTION = "reproduction"
 # Memory
 SHORT_TERM_MEMORY = "short"
 LONG_TERM_MEMORY = "long"
+PERMANENT_TERM_MEMORY = "permanent"
 DOBAMINE = "dobamine"
 AGGRESSIVE_SEARCH = "aggressive_needs"
 AGGRESSIVE_EXPLORE = "aggressive_dobamine"
 PASSIVE = "passive"
 POPULATION_DENSITY = "population_density"
+# Requests
+EAT = "eat"
+MATE = "mate"
+COMMUNICATE = "communicate"
 # Sex
 FEMALE = "F"
 MALE = "M"
@@ -63,16 +68,21 @@ MALE = "M"
 STARTING_DOB_POPULATION = 10
 
 DEFAULT_MAX_CALORIES = 1000
-DEFAULT_CALORIES_MOD = (-100, 100) # random mutation
+DEFAULT_CALORIES_MOD = (-15, 30) # random mutation
 
 HUNGER_THRESHHOLD = 0.8
-FOOD_COST = 5 # per move
+FOOD_MULTIPLIER = 2.5 # multiply below
+# 50 for mating
+# 10 for moving
+# 5 per 5 ticks
 
 DEFAULT_MAX_HYDRATION = 100
-DEFAULT_WATER_MOD = (-10, 10) # random mutation
+DEFAULT_WATER_MOD = (-3, 5) # random mutation
 
 THIRST_THRESHHOLD = 0.8
-WATER_COST = 1 # per move
+WATER_MULTIPLIER = 1 # multiply below
+# 2-3 for mating
+# 1 for else
 
 DEFAULT_DOBAMINE = 100
 LOW_DOBAMINE_THRESHHOLD = 0.4
@@ -87,6 +97,7 @@ DANGER_THRESHHOLD = 0.3
 MEMORY_AGES = {
     SHORT_TERM_MEMORY: 20,
     LONG_TERM_MEMORY: 150,
+    PERMANENT_TERM_MEMORY: 1,
 }
 
 FORGET_CHANCE_PER = 0.02 # per tick
@@ -101,14 +112,15 @@ DEFAULT_ELDER_AGE = 200
 TICKS_DOBS_LIVE_AT_ELDER_AGE = 70
 
 DEFAULT_DEATH_AGE = 300
-DEATH_AGE_MOD = (-25, 25) # random mutation
+DEATH_AGE_MOD = (-5, 10) # random mutation
 
 # Sex
 FEMALE_COLOR = (155, 0, 255)
 MALE_COLOR = (0, 10, 255)
+COLOR_VARIATION = (-2, +2)
 
 # Mating
-MATING_COOLDOWN = 10
+MATING_COOLDOWN = 15
 MATING_COOLDOWN_SPEED = 0.5 # gained per tick
 NEARBY_MATE_BONUS = 0.2 # increases urge to reproduce if there's a nearby mate
 OFFSPRING_LIMIT = 3

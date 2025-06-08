@@ -38,7 +38,7 @@ class Simulation_Object:
         return abs(tx - dx) + abs(ty - dy) == 1
 
     # Indicate what happens when a dob interacts with the object, by default it returns an energy value
-    def interact_with(self):
+    def interact_with(self, request):
         return True
 
     def register(self, object_class: object, object_tag: str, db: list=None) -> None:

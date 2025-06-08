@@ -6,7 +6,7 @@ from world_objects import *
 from random import uniform, seed
 from data.data_collector import Data_Collector
 
-# seed(42)
+seed(42)
 
 class Simulator():
     def __init__(self):
@@ -36,6 +36,7 @@ class Simulator():
                 elif event.type == pygame.K_k:
                     for dob in ACTIVE_DOBS:
                         dob.alive = False
+                    paused = not paused
 
             if not paused:
                 # -- Object-handling --
@@ -48,9 +49,6 @@ class Simulator():
                 # -- End of Drawing --
                 pygame.display.flip()
 
-                if len(ACTIVE_DOBS) == 0:
-                    is_running = False
-
                 if self.tick % SNAPSHOT_FREQUENCY == 0 and is_running:
                     self.data_collector.generate_snapshot(self.tick)
                 
@@ -58,6 +56,9 @@ class Simulator():
                 # print(f"End of tick {self.tick}\n")
                 self.tick += 1
                 self.clock.tick(TPS)
+            
+            if len(ACTIVE_DOBS) == 0:
+                is_running = False
 
         # -- Post-simulation --
         self.data_collector.save_snapshots_to_file()
