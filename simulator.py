@@ -3,8 +3,10 @@ from utilities.config import *
 from utilities.utils import to_grid
 from dobs.dobs import Dob
 from world_objects import *
-from random import uniform
+from random import uniform, seed
 from data.data_collector import Data_Collector
+
+# seed(42)
 
 class Simulator():
     def __init__(self):
@@ -31,6 +33,9 @@ class Simulator():
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
                         paused = not paused
+                elif event.type == pygame.K_k:
+                    for dob in ACTIVE_DOBS:
+                        dob.alive = False
 
             if not paused:
                 # -- Object-handling --
@@ -56,10 +61,16 @@ class Simulator():
 
         # -- Post-simulation --
         self.data_collector.save_snapshots_to_file()
-        self.data_collector.plot_stats()
-        self.data_collector.plot_death_causes()
-        self.data_collector.plot_resource_security()
+
+        # Chart generation (hint: set to 'False' to prevent chart creation)
+        self.data_collector.plot_stats(plot_it=True)
+        self.data_collector.plot_death_causes(plot_it=True)
+        self.data_collector.plot_resource_security(plot_it=False)
         self.data_collector.plot_alive_vs_food_security()
+        self.data_collector.plot_alive_vs_sex_ratio()
+        self.data_collector.plot_mutation_traits(plot_it=True)
+        self.data_collector.plot_births_vs_sex_ratio()
+
         pygame.quit()
 
     # Initializes the simulation by creating all objects
@@ -87,8 +98,8 @@ class Simulator():
         grid_spacing_x = MAX_GRID_X // 3.5  # 4 = spacing gaps (3 placements)
         grid_spacing_y = MAX_GRID_Y // 3.5
 
-        for i in range(1, 6):  # 1 to 3
-            for j in range(1, 6):
+        for i in range(1, 4):  # 1 to 3
+            for j in range(1, 4):
                 x = i * grid_spacing_x + randint(-2, 2)
                 y = j * grid_spacing_y + randint(-2, 2)
                 Food_Tree(starting_coords=(x, y))

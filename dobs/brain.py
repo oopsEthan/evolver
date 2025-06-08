@@ -27,11 +27,11 @@ class Brain():
         self.memory = []
     
     # Function called to determine what a dob is going to do
-    def think(self):
-        goal = self.determine_goal()
+    def think(self) -> bool:
+        new_goal = self.determine_goal()
         
         if not self.current_goal or not self.current_goal.get("coords"):
-            self.current_goal = goal
+            self.current_goal = new_goal
 
         coords = self.current_goal.get("coords")
         target = self.current_goal.get("target")
@@ -40,53 +40,66 @@ class Brain():
         if self.dob.is_adjacent_to(coords) and target:
             self.dob.interact(target)
             self.current_goal = {}
-            return
+            return False
 
         # If the dobs goal has changed, re-evaluate it's path
-        if self.current_goal != goal:
-            self.dob.move_towards(goal["coords"], repath=True)
-            self.current_goal = goal
+        if coords != new_goal.get("coords"):
+            self.dob.move_towards(new_goal["coords"], repath=True)
+            self.current_goal = new_goal
+            return False
         
         # If the dobs goals have not changed and it's not adjacent, continue movement
         else:
             self.dob.move_towards(coords)
+            return True
 
-    # Evaluates what a dob needs most at any given time
     def determine_goal(self):
+        """Evaluates what a dob needs most for decision-making"""
         needs = self.get_urgencies()
         most_urgent = max(needs, key=needs.get)
-    
+
+        # Attempts to fulfill the most urgent needs
         if most_urgent == WATER:
-            target, coords = self.get_closest_water()
-
+            target, coords = self.get_closest_water() # can return (None, None) if no known water
         elif most_urgent == FOOD:
-            target, coords = self.get_closest_food()
-
+            target, coords = self.get_closest_food() # can return (None, None) if no known food
         elif most_urgent == REPRODUCTION:
-            target, coords = self.get_closest_mate()
-
+            target, coords = self.get_closest_mate() # can return (None, None) if no known mates
         elif most_urgent == POPULATION_DENSITY:
-            print(f"Dob ({self.dob.id}) wants to get the F away from these people!")
-            target, coords = None, self.dob.get_tile_in_sight(AGGRESSIVE)
+            target, coords = None, self.dob.get_tile_in_sight(AGGRESSIVE_SEARCH)
 
-        if not target and (self.dob.mom and self.dob.age < ADULT_AGE):
-            target, coords = self.dob.mom, self.dob.mom.grid_pos
-
-        if not target and not coords:
-            exploration_mode = self.get_exploration_mode()
-            wander_chance = max(0.2, 1.0 * (1 - (self.current_dobamine / self.max_dobamine))**2)
-            
-            if (exploration_mode == PASSIVE and random() < wander_chance) or exploration_mode == AGGRESSIVE:
-                target, coords = None, self.dob.get_tile_in_sight(exploration_mode)
-            
+        # If nothing was found, explore based on needs, unless it's a child, then it follows it's mom
+        if not coords:
+            if self.dob.mom and self.dob.age < ADULT_AGE:
+                target, coords = self.dob.mom, self.dob.mom.grid_pos
             else:
-                target, coords = None, None
-                
+                target, coords = self.explore()
+
         return {
             "target": target,
             "coords": coords
         }
     
+    def explore(self) -> str:
+        """If a dob has no viable target for goals, it will randomly explore based off factors"""
+        # Aggressive Search = prioritizes farther tiles with more dobamine gain
+        if not self.is_food_secure() or not self.is_water_secure():
+            return None, self.dob.get_tile_in_sight(AGGRESSIVE_SEARCH)
+        
+        # Passive = prioritizes closer tiles regardless of dobamine gain
+        elif (self.is_food_secure() and self.is_water_secure()) and random() < self.get_chance_to_wander():
+            return None, self.dob.get_tile_in_sight(PASSIVE)
+        
+        # If no explore mode is valid, return no coords
+        return None, None
+
+    def get_chance_to_wander(self) -> float:
+        """Get a dob's chance to wander, increases with lower dobamine"""
+        minimum_cap = 0.2
+        dobamine_ratio = 1 - (self.current_dobamine / self.max_dobamine)
+
+        return max(minimum_cap, dobamine_ratio ** 2)
+
     # region ----- MEMORY FUNCTIONS -----
 
     def attempt_to_memorize(self, coords: list) -> None:
@@ -144,14 +157,14 @@ class Brain():
 
     def promote_memory(self, mem: dict) -> None:
         """Promotes a memory to long-term"""
-        self.send_dobamine_gain(2)
+        self.send_dobamine_gain()
         mem["memory_type"] = LONG_TERM_MEMORY
         mem["age"] = MEMORY_AGES[LONG_TERM_MEMORY]
         mem["interactions"] = 0
 
     def add_new_memory(self, obj: object) -> None:
         """Adds a brand new memory to short-term"""
-        self.send_dobamine_gain(1)
+        self.send_dobamine_gain()
         mem = {
             "object": obj,
             "age": MEMORY_AGES[SHORT_TERM_MEMORY],
@@ -180,7 +193,6 @@ class Brain():
         mem["interactions"] -= 1
 
         if mem["interactions"] < 0:
-            print(f"Dob ({self.dob.id}) forgot a memory: {mem["object"].tag}, {mem["object"].grid_pos}!")
             self.memory.remove(mem)
 
     def has_memory_of(self, tag: str, specific_search: str=None) -> list:
@@ -200,6 +212,7 @@ class Brain():
     # region ----- DOBAMINE FUNCTIONS -----
 
     def get_dobamine_gain(self) -> int:
+        """Incrememts dobamine per tick in dob.exist()"""
         dobamine_gain = -5
 
         if self.is_food_secure():
@@ -210,23 +223,24 @@ class Brain():
         
         self.send_dobamine_gain(dobamine_gain)
 
-    def send_dobamine_gain(self, gain: int) -> None:
+    def send_dobamine_gain(self, gain: int=1) -> None:
+        """Increases dobamine by 'gain'"""
         self.current_dobamine = max(0, min(self.max_dobamine, self.current_dobamine + gain))
 
     # endregion
 
     # region ----- MATING FUNCTIONS -----
 
-        # Determines a dobs urgency
     def determine_sexual_urge(self):
+        """Determines a dob's urgency to reproduce"""
         if self.dob.can_mate() and self.is_food_secure() and self.is_water_secure():
             the_urge = (self.hunger_ratio + self.thirst_ratio) / 2
 
+            # If there's a nearby mate, the urge to reproduce is stronger
             nearby_mate = self.get_known_mates()
-
             if nearby_mate:
-                urgency = min(1.0, the_urge + 0.3)
-            
+                urgency = min(1.0, the_urge + NEARBY_MATE_BONUS)
+
             else:
                 urgency = the_urge
         
@@ -235,26 +249,15 @@ class Brain():
 
         return urgency
     
-    def determine_pop_density_urge(self):
-        density = sum(
-            1 for coord in self.dob.tiles_in_vision
-            if any(obj.tag == DOB for obj in GRID_OCCUPANCY.get(coord, []))
-            )
-        
-        total_tiles = len(self.dob.tiles_in_vision)
-        density_ratio = density / total_tiles if total_tiles > 0 else 0
-
-        return (density_ratio - 0.4) * 2 if density_ratio > 0.4 else 0.0
-    
-    # Locates any known mates
     def get_known_mates(self):
+        """Checks memory for any known mates"""
         return [mem["object"] for mem in self.memory 
                 if mem["object"].tag == DOB and
                 mem["object"].sex != self.dob.sex and
                 mem["object"].can_mate()]
 
-    # Get the closet opposite sex dob to the dob
     def get_closest_mate(self):
+        """Gets the closest viable mate to the dob"""
         matches = self.get_known_mates()
 
         if matches:
@@ -265,10 +268,11 @@ class Brain():
     
     # endregion
 
-    # region ----- HELPER FUNCTIONS -----
+    # region ----- GENERAL URGENCY FUNCTIONS -----
 
-    # Determines urgencies for decision making
     def get_urgencies(self):
+        """Determines urgencies for decision making"""
+        # Basic ratios of current / max, returns 0.0 to 1.0
         self.thirst_ratio = self.dob.current_hydration / self.dob.max_hydration
         self.hunger_ratio = self.dob.current_calories / self.dob.max_calories
 
@@ -285,19 +289,27 @@ class Brain():
             POPULATION_DENSITY: self.determine_pop_density_urge()
         }
 
-    def get_exploration_mode(self) -> str:
-        low_calories = self.dob.current_calories < self.dob.max_calories * DANGER_THRESHHOLD
-        low_hydration = self.dob.current_hydration < self.dob.max_hydration * DANGER_THRESHHOLD
-
-        if (low_calories and not self.is_food_secure()) or (low_hydration and not self.is_water_secure()):
-            return AGGRESSIVE
+    def determine_pop_density_urge(self):
+        """Determines if nearby density above [CROWDING_THRESHHOLD]%, if so, desire to move away grows"""
+        visible_dobs = sum(
+            1 for coord in self.dob.tiles_in_vision
+            if any(obj.tag == DOB for obj in GRID_OCCUPANCY.get(coord, []))
+            )
         
-        return PASSIVE
+        total_tiles = len(self.dob.tiles_in_vision)
+        density_ratio = visible_dobs / total_tiles if total_tiles > 0 else 0
 
-    # Get the closet food to the dob
+        return (density_ratio - CROWDING_THRESHHOLD) * CROWDING_SCALING if density_ratio > CROWDING_THRESHHOLD else 0.0
+
+    # endregion
+
+    # region ----- FOOD BRAIN FUNCTIONS -----
+
     def get_closest_food(self):
+        """Get the closet food to the dob"""
         matches = []
 
+        # Checks trees for food, if tree has no food, it may be forgotten
         for tree in self.has_memory_of(TREE):
             if not tree.grown_foods:
                 self.forget_memory(tree)
@@ -310,13 +322,20 @@ class Brain():
 
         return None, None
 
+    
     def is_food_secure(self) -> bool:
+        """Checks if dob knows of food or is higher than 60% calories"""
         return len(self.has_memory_of(FOOD, specific_search=LONG_TERM_MEMORY)) > 0 or self.dob.current_calories > self.dob.max_calories * 0.6
     
-    # Get the closet water to the dob
+    # endregion
+
+    # region ----- WATER BRAIN FUNCTIONS -----
+
     def get_closest_water(self):
+        """Get the closet water to the dob"""
         matches = self.has_memory_of(WATER)
 
+        # Since there's only one water object, it's actually checking the closest water tiles
         closest = None, None
         closest_dist = float('inf')
         
@@ -330,6 +349,7 @@ class Brain():
         return closest
 
     def is_water_secure(self) -> bool:
+        """Checks if dob knows of water or is higher than 60% hydration"""
         return len(self.has_memory_of(WATER, specific_search=LONG_TERM_MEMORY)) > 0 or self.dob.current_hydration > self.dob.max_hydration * 0.6
     
     # endregion

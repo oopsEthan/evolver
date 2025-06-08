@@ -1,10 +1,10 @@
 # region ----- UTILITY -----
 
 # UI Settings
-TPS = 50
+TPS = 100
 MAX_X = 720
 MAX_Y = 720
-TILE_SIZE = 10
+TILE_SIZE = 20
 GRID_UNIT = (TILE_SIZE, TILE_SIZE)
 MAX_GRID_X = MAX_X // TILE_SIZE
 MAX_GRID_Y = MAX_Y // TILE_SIZE
@@ -35,7 +35,7 @@ ACTIVE_WATER = []
 WATER = "water"
 
 # Water Settings
-STARTING_WATER_SOURCES = 16
+STARTING_WATER_SOURCES = 8
 CASCADE_CHANCE_REDUCTION = 0.01
 WATER_VALUE = 50
 
@@ -51,7 +51,8 @@ REPRODUCTION = "reproduction"
 SHORT_TERM_MEMORY = "short"
 LONG_TERM_MEMORY = "long"
 DOBAMINE = "dobamine"
-AGGRESSIVE = "aggressive"
+AGGRESSIVE_SEARCH = "aggressive_needs"
+AGGRESSIVE_EXPLORE = "aggressive_dobamine"
 PASSIVE = "passive"
 POPULATION_DENSITY = "population_density"
 # Sex
@@ -59,13 +60,17 @@ FEMALE = "F"
 MALE = "M"
 
 # Dob Settings
-STARTING_DOB_POPULATION = 30
+STARTING_DOB_POPULATION = 10
 
 DEFAULT_MAX_CALORIES = 1000
+DEFAULT_CALORIES_MOD = (-100, 100) # random mutation
+
 HUNGER_THRESHHOLD = 0.8
 FOOD_COST = 5 # per move
 
 DEFAULT_MAX_HYDRATION = 100
+DEFAULT_WATER_MOD = (-10, 10) # random mutation
+
 THIRST_THRESHHOLD = 0.8
 WATER_COST = 1 # per move
 
@@ -73,13 +78,17 @@ DEFAULT_DOBAMINE = 100
 LOW_DOBAMINE_THRESHHOLD = 0.4
 HIGH_DOBAMINE_THRESHHOLD = 0.8
 
+CROWDING_THRESHHOLD = 0.4 # % of vision tiles have dobs, triggers population density urge
+CROWDING_SCALING = 2 # controls how much the crowding urgency scales if over crowding threshhold
+
 # Danger threshhhold determines at what % calories a dob will start aggressively searching
 DANGER_THRESHHOLD = 0.3
 
 MEMORY_AGES = {
     SHORT_TERM_MEMORY: 20,
-    LONG_TERM_MEMORY: 100,
+    LONG_TERM_MEMORY: 150,
 }
+
 FORGET_CHANCE_PER = 0.02 # per tick
 INTERACTIONS_TO_PROMOTE = 2
 
@@ -88,8 +97,11 @@ AGE_RATE = 1 # per tick
 BABY_DOB_SIZE = TILE_SIZE / 3
 ADULT_DOB_SIZE = TILE_SIZE / 2
 ADULT_AGE = 50
-ELDER_AGE = 200
-DEATH_AGE = 300
+DEFAULT_ELDER_AGE = 200
+TICKS_DOBS_LIVE_AT_ELDER_AGE = 70
+
+DEFAULT_DEATH_AGE = 300
+DEATH_AGE_MOD = (-25, 25) # random mutation
 
 # Sex
 FEMALE_COLOR = (155, 0, 255)
@@ -98,6 +110,7 @@ MALE_COLOR = (0, 10, 255)
 # Mating
 MATING_COOLDOWN = 10
 MATING_COOLDOWN_SPEED = 0.5 # gained per tick
+NEARBY_MATE_BONUS = 0.2 # increases urge to reproduce if there's a nearby mate
 OFFSPRING_LIMIT = 3
 
 # endregion

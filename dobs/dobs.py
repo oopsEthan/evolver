@@ -1,5 +1,5 @@
 import pygame
-from random import choice, choices, randint
+from random import choice, choices, randint, random
 from utilities.config import *
 from utilities.utils import tile_occupied, within_bounds, get_adjacent_tiles, remove_object_from_GO
 from dobs.brain import Brain
@@ -12,7 +12,7 @@ class Dob(Simulation_Object):
         super().__init__()
         self.register(Dob, DOB, db=ACTIVE_DOBS)
         self.generate_biology(sex, mom, dad)
-        self.generate_needs(DEFAULT_MAX_CALORIES, DEFAULT_MAX_HYDRATION)
+        self.generate_needs()
 
         self.visited_tiles = [self.grid_pos]
         self.current_path = []
@@ -22,7 +22,7 @@ class Dob(Simulation_Object):
         pygame.draw.circle(surface, self.color, self.pixel_pos, self.size)
 
         self.see()
-        self.brain.think()
+        goal_change_DEBUG = self.brain.think()
 
         self.increment(tick)
 
@@ -107,11 +107,11 @@ class Dob(Simulation_Object):
 
     # When dobs do something that requires energy, this is called to expend it
     def expend_energy(self, factor):
-        self.current_calories -= FOOD_COST * factor
-        self.current_hydration -=  WATER_COST * factor
+            self.current_calories -= (FOOD_COST * factor) if self.age >= ADULT_AGE else (FOOD_COST * (factor * 0.5))
+            self.current_hydration -=  (WATER_COST * factor) if self.age >= ADULT_AGE else (WATER_COST * (factor * 0.5))
 
-        if self.current_calories == 0 or self.current_hydration == 0:
-            self.die()
+            if self.current_calories == 0 or self.current_hydration == 0:
+                self.die()
     
     # Mating creates a new dob with a combo of mom and dad's stats
     # Mating is only possible if both dobs are mating age and not on cooldown
@@ -140,8 +140,22 @@ class Dob(Simulation_Object):
     
     # Only females should call this
     def determine_viable_mate(self, male):
-        # TODO: Expand this to be more interesting lol
-        return male.can_mate()
+        chance_to_mate = 0.0
+
+        if male.death_age >= self.death_age:
+            chance_to_mate += 0.3
+        
+        if male.max_calories >= self.max_calories:
+            chance_to_mate += 0.3
+        
+        if male.max_hydration >= self.max_hydration:
+            chance_to_mate += 0.3
+
+        result = random() < chance_to_mate + 0.1
+
+        print(f"[Mate Check] F:{self.id} M:{male.id} → chance: {chance_to_mate:.2f} → {'✔' if result else '✖'}")
+
+        return result
     
     # Defines a dob's cause of death and sets them to dead - RIP
     def die(self):
@@ -166,13 +180,10 @@ class Dob(Simulation_Object):
         self.alive = True
 
         self.age = 0
-        self.death_age = DEATH_AGE + randint(-10, 10)
 
         self.mom = mom
         self.dad = dad
-
-        if self.mom and self.dad:
-            self.death_age = (mom.death_age + dad.death_age) / 2
+        self.generate_dna(mom, dad)
 
         self.sight = 3
         self.size = BABY_DOB_SIZE
@@ -186,14 +197,28 @@ class Dob(Simulation_Object):
         self.offspring = 0
         self.cause_of_death = ""
 
+    def generate_dna(self, mom=None, dad=None):
+        if mom and dad:
+            self.death_age = int((mom.death_age + dad.death_age) / 2) + randint(*DEATH_AGE_MOD)
+            self.max_calories = int((mom.max_calories + dad.max_calories) / 2) + randint(*DEFAULT_CALORIES_MOD)
+            self.max_hydration = int((mom.max_hydration + dad.max_hydration) / 2) + randint(*DEFAULT_WATER_MOD)
+        
+        else:
+            self.death_age = DEFAULT_DEATH_AGE + randint(*DEATH_AGE_MOD)
+            self.max_calories = DEFAULT_MAX_CALORIES + randint(*DEFAULT_CALORIES_MOD)
+            self.max_hydration = DEFAULT_MAX_HYDRATION + randint(*DEFAULT_WATER_MOD)
+        
+        self.elder_age = self.calculate_elder_age()
+    
+    def calculate_elder_age(self) -> int:
+        return self.death_age - TICKS_DOBS_LIVE_AT_ELDER_AGE
+    
     # Defines all of the dob's starting needs
-    def generate_needs(self, max_calories, max_hydration):
-        self.max_calories = max_calories
-        self.current_calories = max_calories
+    def generate_needs(self):
+        self.current_calories = self.max_calories
         self.hunger_threshhold = HUNGER_THRESHHOLD
 
-        self.max_hydration = max_hydration
-        self.current_hydration = max_hydration
+        self.current_hydration = self.max_hydration
         self.thirst_threshhold = THIRST_THRESHHOLD
 
     # Updates the age milestones
@@ -205,8 +230,8 @@ class Dob(Simulation_Object):
         if self.age >= ADULT_AGE:
             self.size = ADULT_DOB_SIZE
         
-        elif self.age >= ELDER_AGE:
-            pass # for now
+        elif self.age >= self.elder_age:
+            self.sight -= 1
 
     # Updates the sex attributes
     def update_sex_attributes(self, sex):
@@ -228,7 +253,7 @@ class Dob(Simulation_Object):
                     self.offspring < OFFSPRING_LIMIT)
                     
     def is_viable_mating_age(self) -> bool:
-        return ELDER_AGE >= self.age >= ADULT_AGE
+        return self.elder_age >= self.age >= ADULT_AGE
 
     def get_tile_in_sight(self, mode) -> tuple[int, int]:
         """Returns a tile within vision based on search mode, with weighted randomness favoring closer tiles (or farther in AGGRESSIVE mode)"""
@@ -240,7 +265,7 @@ class Dob(Simulation_Object):
         # Gets tiles and their distance from the dob
         tile_distances = [(tile, tile in self.visited_tiles, self.get_grid_distance_to(tile)) for tile in valid_tiles]
 
-        if mode == AGGRESSIVE:
+        if mode == AGGRESSIVE_SEARCH:
             # Farther tiles get higher weight
             weights = [(dist + 1) * (2 if visited else 1) for _, visited, dist in tile_distances]
         elif mode == PASSIVE:
@@ -249,6 +274,10 @@ class Dob(Simulation_Object):
 
         tiles = [tile for tile, _, _ in tile_distances]
 
+        if len(tiles) == 0:
+            print(f"ERROR: No tiles found for Dob ({self.id})!")
+            return None
+        
         # Pick one tile based on weights
         chosen_tile = choices(tiles, weights=weights, k=1)[0]
         return chosen_tile
@@ -258,10 +287,8 @@ class Dob(Simulation_Object):
     def increment(self, tick):
         self.brain.age_memories()
 
-        if tick % 10 == 0: # every 10 ticks
-            self.expend_energy(2)
-
         if tick % 5 == 0: # every 5 ticks
+            self.expend_energy(2)
             self.brain.get_dobamine_gain()
 
         if self.mating_cooldown > 0:
@@ -285,10 +312,12 @@ class Dob(Simulation_Object):
     def collect_stats(self) -> dict:
         return {
             "calories": self.current_calories,
+            "max_calories": self.max_calories,
             "hydration": self.current_hydration,
+            "max_hydration": self.max_hydration,
             "age": self.age,
+            "death_age": self.death_age,
             "dobamine": self.brain.current_dobamine,
-            "exploration_mode": self.brain.get_exploration_mode(),
             "water_security": self.brain.is_water_secure(),
             "food_security": self.brain.is_food_secure()
         }
@@ -300,7 +329,7 @@ class Dob(Simulation_Object):
 def find_available_adjacent(obj, coords):
         adjacents = get_adjacent_tiles(coords, diagonals=False, avoid_occupied=True)
         while adjacents == []:
-            return obj.get_tile_in_sight(obj.brain.get_exploration_mode())
+            return obj.get_tile_in_sight(PASSIVE)
         return choice(adjacents)
 
 # endregion
