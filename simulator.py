@@ -87,8 +87,8 @@ class Simulator():
         grid_spacing_x = MAX_GRID_X // 3.5  # 4 = spacing gaps (3 placements)
         grid_spacing_y = MAX_GRID_Y // 3.5
 
-        for i in range(1, 4):  # 1 to 3
-            for j in range(1, 4):
+        for i in range(1, 6):  # 1 to 3
+            for j in range(1, 6):
                 x = i * grid_spacing_x + randint(-2, 2)
                 y = j * grid_spacing_y + randint(-2, 2)
                 Food_Tree(starting_coords=(x, y))
@@ -111,7 +111,7 @@ class Simulator():
     # Processes dob actions per call
     def tick_dobs(self) -> None:
         for dob in ACTIVE_DOBS[:]:
-            dob.exist(self.screen)
+            dob.exist(self.screen, self.tick)
             if dob.alive == False:
                 self.data_collector.process_package(dob.collect_package())
                 ACTIVE_DOBS.remove(dob)

@@ -8,6 +8,8 @@ from random import random
 # TODO: Make a communication system so dobs can tell other dobs where food is
 # TODO: Make dobs recognize food value and change their eating habits accordingly
 
+# TODO: CLEAN THIS SHIT UP
+
 class Brain():
     def __init__(self):
         self.dob = None
@@ -33,7 +35,6 @@ class Brain():
 
         coords = self.current_goal.get("coords")
         target = self.current_goal.get("target")
-
 
         # If the dob is adjacent to coords (target), interact with it
         if self.dob.is_adjacent_to(coords) and target:
@@ -63,8 +64,15 @@ class Brain():
 
         elif most_urgent == REPRODUCTION:
             target, coords = self.get_closest_mate()
-        
-        if not target or not coords:
+
+        elif most_urgent == POPULATION_DENSITY:
+            print(f"Dob ({self.dob.id}) wants to get the F away from these people!")
+            target, coords = None, self.dob.get_tile_in_sight(AGGRESSIVE)
+
+        if not target and (self.dob.mom and self.dob.age < ADULT_AGE):
+            target, coords = self.dob.mom, self.dob.mom.grid_pos
+
+        if not target and not coords:
             exploration_mode = self.get_exploration_mode()
             wander_chance = max(0.2, 1.0 * (1 - (self.current_dobamine / self.max_dobamine))**2)
             
@@ -86,7 +94,7 @@ class Brain():
         for coord in coords:
             for obj in GRID_OCCUPANCY.get(coord, []):
                 # Ignores memorizing itself and dobs who are not potential mates
-                if obj is self or (obj.tag == DOB and not obj.can_mate()):
+                if obj is self:
                     continue
                 # Changes food to their respective tree for memorization
                 if obj.tag == FOOD and obj.tree != None:
@@ -136,12 +144,14 @@ class Brain():
 
     def promote_memory(self, mem: dict) -> None:
         """Promotes a memory to long-term"""
+        self.send_dobamine_gain(2)
         mem["memory_type"] = LONG_TERM_MEMORY
         mem["age"] = MEMORY_AGES[LONG_TERM_MEMORY]
         mem["interactions"] = 0
 
     def add_new_memory(self, obj: object) -> None:
         """Adds a brand new memory to short-term"""
+        self.send_dobamine_gain(1)
         mem = {
             "object": obj,
             "age": MEMORY_AGES[SHORT_TERM_MEMORY],
@@ -162,11 +172,27 @@ class Brain():
                 return mem, mem["memory_type"]
         
         return None, None
+    
+    def forget_memory(self, obj: object) -> None:
+        """Forgets a memory if the interactions get too low"""
+        mem, _ = self.get_memory(obj)
+        
+        mem["interactions"] -= 1
 
-    def has_memory_of(self, tag: str) -> list:
+        if mem["interactions"] < 0:
+            print(f"Dob ({self.dob.id}) forgot a memory: {mem["object"].tag}, {mem["object"].grid_pos}!")
+            self.memory.remove(mem)
+
+    def has_memory_of(self, tag: str, specific_search: str=None) -> list:
         """Checks memories for tags, returns list prioritizing short-term first"""
         short = [mem["object"] for mem in self.memory if mem["memory_type"] == SHORT_TERM_MEMORY and mem["object"].tag == tag]
+        if specific_search == SHORT_TERM_MEMORY:
+            return short
+        
         long = [mem["object"] for mem in self.memory if mem["memory_type"] == LONG_TERM_MEMORY and mem["object"].tag == tag]
+        if specific_search == LONG_TERM_MEMORY:
+            return long
+        
         return short + long
     
     # endregion
@@ -174,7 +200,7 @@ class Brain():
     # region ----- DOBAMINE FUNCTIONS -----
 
     def get_dobamine_gain(self) -> int:
-        dobamine_gain = -3
+        dobamine_gain = -5
 
         if self.is_food_secure():
             dobamine_gain += 1
@@ -209,9 +235,23 @@ class Brain():
 
         return urgency
     
+    def determine_pop_density_urge(self):
+        density = sum(
+            1 for coord in self.dob.tiles_in_vision
+            if any(obj.tag == DOB for obj in GRID_OCCUPANCY.get(coord, []))
+            )
+        
+        total_tiles = len(self.dob.tiles_in_vision)
+        density_ratio = density / total_tiles if total_tiles > 0 else 0
+
+        return (density_ratio - 0.4) * 2 if density_ratio > 0.4 else 0.0
+    
     # Locates any known mates
     def get_known_mates(self):
-        return [mem["object"] for mem in self.memory if mem["object"].tag == DOB and mem["object"].sex != self.dob.sex and mem["object"].can_mate()]
+        return [mem["object"] for mem in self.memory 
+                if mem["object"].tag == DOB and
+                mem["object"].sex != self.dob.sex and
+                mem["object"].can_mate()]
 
     # Get the closet opposite sex dob to the dob
     def get_closest_mate(self):
@@ -235,10 +275,14 @@ class Brain():
         self.thirst_urgency = 1 - self.thirst_ratio
         self.hunger_urgency = 1 - self.hunger_ratio
 
+        food_security = 0.8 if self.is_food_secure() else 1.0
+        water_security = 0.8 if self.is_water_secure() else 1.0
+
         return {
-            WATER: self.thirst_urgency,
-            FOOD: self.hunger_urgency,
-            REPRODUCTION: self.determine_sexual_urge()
+            WATER: self.thirst_urgency * water_security,
+            FOOD: self.hunger_urgency * food_security,
+            REPRODUCTION: self.determine_sexual_urge(),
+            POPULATION_DENSITY: self.determine_pop_density_urge()
         }
 
     def get_exploration_mode(self) -> str:
@@ -256,6 +300,7 @@ class Brain():
 
         for tree in self.has_memory_of(TREE):
             if not tree.grown_foods:
+                self.forget_memory(tree)
                 continue
             matches.extend(tree.grown_foods)
 
@@ -266,7 +311,7 @@ class Brain():
         return None, None
 
     def is_food_secure(self) -> bool:
-        return len(self.has_memory_of(FOOD)) > 0 or self.dob.current_calories > self.dob.max_calories * 0.6
+        return len(self.has_memory_of(FOOD, specific_search=LONG_TERM_MEMORY)) > 0 or self.dob.current_calories > self.dob.max_calories * 0.6
     
     # Get the closet water to the dob
     def get_closest_water(self):
@@ -285,6 +330,6 @@ class Brain():
         return closest
 
     def is_water_secure(self) -> bool:
-        return len(self.has_memory_of(WATER)) > 0 or self.dob.current_hydration > self.dob.max_hydration * 0.6
+        return len(self.has_memory_of(WATER, specific_search=LONG_TERM_MEMORY)) > 0 or self.dob.current_hydration > self.dob.max_hydration * 0.6
     
     # endregion

@@ -74,15 +74,14 @@ class Food_Tree(Simulation_Object):
             food.exist(surface)
     
     def attempt_to_grow(self):
-        roll = random() + 0.1
+        roll = random()
 
         if roll < self.regrowth_chance:
-            print(f"Food ({self.id}) regrew at {self.regrowth_chance*100:.1f}%.")
             self.grow_food()
             self.regrowth_chance = DEFAULT_FOOD_REGROWTH_CHANCE
             return False
         
-        self.regrowth_chance += 0.005
+        self.regrowth_chance += 0.01
         return True
 
     def get_growth_spot(self) -> tuple[int, int]:

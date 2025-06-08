@@ -18,12 +18,13 @@ class Dob(Simulation_Object):
         self.current_path = []
 
     # Called each tick to handle behavior, cooldowns, aging, and rendering
-    def exist(self, surface):
+    def exist(self, surface, tick):
         pygame.draw.circle(surface, self.color, self.pixel_pos, self.size)
+
         self.see()
         self.brain.think()
 
-        self.increment()
+        self.increment(tick)
 
     # region ----- PATHFINDING FUNCTIONS -----
 
@@ -32,6 +33,7 @@ class Dob(Simulation_Object):
         if len(self.current_path) == 0 or repath:
             if self.is_adjacent_to(target):
                 return
+            
             self.current_path = self.find_path(self.grid_pos, target)
 
         if len(self.current_path) == 0:
@@ -131,11 +133,6 @@ class Dob(Simulation_Object):
             return
         
         else:
-            print(f"""Dob ({self.id}, {self.sex}) attempted mating with Dob ({female.id}, {female.sex}), but failed! :(
-                    FEMALE: {female.can_mate()}
-                    VIABILITY CHECK: {female.determine_viable_mate(self)}
-                    MALE, MATING CD: {self.mating_cooldown}
-                    MALE, AGE: {self.age}""")
             self.brain.current_goal = {}
 
             female.mating_cooldown += MATING_COOLDOWN/2
@@ -171,7 +168,10 @@ class Dob(Simulation_Object):
         self.age = 0
         self.death_age = DEATH_AGE + randint(-10, 10)
 
-        if mom and dad:
+        self.mom = mom
+        self.dad = dad
+
+        if self.mom and self.dad:
             self.death_age = (mom.death_age + dad.death_age) / 2
 
         self.sight = 3
@@ -238,16 +238,16 @@ class Dob(Simulation_Object):
             return None
 
         # Gets tiles and their distance from the dob
-        tile_distances = [(tile, self.get_grid_distance_to(tile)) for tile in valid_tiles]
+        tile_distances = [(tile, tile in self.visited_tiles, self.get_grid_distance_to(tile)) for tile in valid_tiles]
 
         if mode == AGGRESSIVE:
             # Farther tiles get higher weight
-            weights = [dist + 1 for _, dist in tile_distances]
+            weights = [(dist + 1) * (2 if visited else 1) for _, visited, dist in tile_distances]
         elif mode == PASSIVE:
             # Closer tiles get higher weight
-            weights = [1 / (dist + 1) for _, dist in tile_distances]
+            weights = [1 / (dist + 1) for _, _, dist in tile_distances]
 
-        tiles = [tile for tile, _ in tile_distances]
+        tiles = [tile for tile, _, _ in tile_distances]
 
         # Pick one tile based on weights
         chosen_tile = choices(tiles, weights=weights, k=1)[0]
@@ -255,13 +255,18 @@ class Dob(Simulation_Object):
 
     
     # Increments counters
-    def increment(self):
+    def increment(self, tick):
         self.brain.age_memories()
+
+        if tick % 10 == 0: # every 10 ticks
+            self.expend_energy(2)
+
+        if tick % 5 == 0: # every 5 ticks
+            self.brain.get_dobamine_gain()
 
         if self.mating_cooldown > 0:
                 self.mating_cooldown -= MATING_COOLDOWN_SPEED
 
-        self.brain.get_dobamine_gain()
 
         self.age += AGE_RATE
         self.update_age()
