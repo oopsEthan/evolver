@@ -48,16 +48,21 @@ class Dob(Simulation_Object):
             return True
         
         else:
-            self.current_path = []
+            # TODO: Instead of just clearing the path, do a quick check if there's a new path to the end_pos, if not, cancel path
+            self.current_path = self.find_path(self.grid_pos, target, quick_repath=True)
             return False
     
     # Dobs use a BFS algorithm to find the best possible path (think: wave)
-    def find_path(self, start_pos: tuple[int, int], end_pos: tuple[int, int]) -> list:
+    def find_path(self, start_pos: tuple[int, int], end_pos: tuple[int, int], quick_repath: bool=False) -> list:
         visited = set([start_pos])
         queue = [(start_pos, [])]
 
         if tile_occupied(end_pos):
+            if quick_repath:
+                return []
             end_pos = find_available_adjacent(self, end_pos)
+            if not end_pos:
+                return []
 
         while queue:
             current_pos, path = queue.pop(0)
@@ -90,24 +95,24 @@ class Dob(Simulation_Object):
             if self.sex == MALE and self.can_mate():
                 self.attempt_to_mate(target)
         
-        elif target.tag == DOB and request == COMMUNICATE:
-            self.share_memory(target)
-            # TODO: create share_memory
+        # elif target.tag == DOB and request == COMMUNICATE:
+        #     self.share_memory(target)
+        #     # TODO: create share_memory
 
-        if self.brain.does_memory_exist(target):
-                self.brain.reinforce_memory(target, reinforcement=5, interact=True)
+        # if self.brain.does_memory_exist(target):
+        #         self.brain.reinforce_memory(target, reinforcement=5, interact=True)
     
     # Calculates all visible tiles within sight distance and then passes visible tiles to memory
     def see(self) -> list:
         grid_x, grid_y = self.grid_pos
-        self.tiles_in_vision = []
+        tiles_in_vision = []
 
         for x in range(grid_x - self.sight, grid_x + self.sight + 1):
             for y in range(grid_y - self.sight, grid_y + self.sight + 1):
                 if within_bounds((x, y)):
-                    self.tiles_in_vision.append((x, y))
+                    tiles_in_vision.append((x, y))
 
-        self.brain.attempt_to_memorize(self.tiles_in_vision)
+        self.brain.receive_tiles_in_sight(tiles_in_vision)
 
     # When dobs do something that requires energy, this is called to expend it
     def expend_energy(self, calories, hydration):
@@ -281,34 +286,6 @@ class Dob(Simulation_Object):
                     
     def is_viable_mating_age(self) -> bool:
         return self.elder_age >= self.age >= ADULT_AGE
-
-    def get_tile_in_sight(self, mode) -> tuple[int, int]:
-        """Returns a tile within vision based on search mode, with weighted randomness favoring closer tiles (or farther in AGGRESSIVE mode)"""
-        valid_tiles = [tile for tile in self.tiles_in_vision if not tile_occupied(tile)]
-
-        if not valid_tiles:
-            return None
-
-        # Gets tiles and their distance from the dob
-        tile_distances = [(tile, tile in self.visited_tiles, self.get_grid_distance_to(tile)) for tile in valid_tiles]
-
-        if mode == AGGRESSIVE_SEARCH:
-            # Farther tiles get higher weight
-            weights = [(dist + 1) * (2 if visited else 1) for _, visited, dist in tile_distances]
-        elif mode == PASSIVE:
-            # Closer tiles get higher weight
-            weights = [1 / (dist + 1) for _, _, dist in tile_distances]
-
-        tiles = [tile for tile, _, _ in tile_distances]
-
-        if len(tiles) == 0:
-            print(f"ERROR: No tiles found for Dob ({self.id})!")
-            return None
-        
-        # Pick one tile based on weights
-        chosen_tile = choices(tiles, weights=weights, k=1)[0]
-        return chosen_tile
-
     
     # Increments counters
     def increment(self, tick):
@@ -316,7 +293,7 @@ class Dob(Simulation_Object):
 
         if tick % 5 == 0: # every 5 ticks
             self.expend_energy(calories=5, hydration=1)
-            self.brain.get_dobamine_gain()
+            self.brain.get_dobamine_decay()
 
         if self.mating_cooldown > 0:
                 self.mating_cooldown -= MATING_COOLDOWN_SPEED
@@ -356,7 +333,7 @@ class Dob(Simulation_Object):
 def find_available_adjacent(obj, coords):
         adjacents = get_adjacent_tiles(coords, diagonals=False, avoid_occupied=True)
         while adjacents == []:
-            return obj.get_tile_in_sight(PASSIVE)
+            return None
         return choice(adjacents)
 
 # endregion

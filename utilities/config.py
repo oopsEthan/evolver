@@ -56,10 +56,18 @@ AGGRESSIVE_SEARCH = "aggressive_needs"
 AGGRESSIVE_EXPLORE = "aggressive_dobamine"
 PASSIVE = "passive"
 POPULATION_DENSITY = "population_density"
+# Needs
+NEED_TAGS = {
+    FOOD: [FOOD, TREE],
+    WATER: [WATER],
+    REPRODUCTION: [REPRODUCTION],
+    DOBAMINE: [DOBAMINE]
+}
 # Requests
 EAT = "eat"
 MATE = "mate"
 COMMUNICATE = "communicate"
+EXPLORE = "explore"
 # Sex
 FEMALE = "F"
 MALE = "M"
@@ -87,6 +95,7 @@ WATER_MULTIPLIER = 1 # multiply below
 DEFAULT_DOBAMINE = 100
 LOW_DOBAMINE_THRESHHOLD = 0.4
 HIGH_DOBAMINE_THRESHHOLD = 0.8
+DOBAMINE_TILE_VALUE = 1
 
 CROWDING_THRESHHOLD = 0.4 # % of vision tiles have dobs, triggers population density urge
 CROWDING_SCALING = 2 # controls how much the crowding urgency scales if over crowding threshhold
@@ -101,7 +110,7 @@ MEMORY_AGES = {
 }
 
 FORGET_CHANCE_PER = 0.02 # per tick
-INTERACTIONS_TO_PROMOTE = 2
+INTERACTIONS_TO_PROMOTE = 10
 
 # Age
 AGE_RATE = 1 # per tick

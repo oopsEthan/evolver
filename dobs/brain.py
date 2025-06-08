@@ -24,7 +24,10 @@ class Brain():
         # age: the age of the memory, decrements each tick
         # interactions: the number of interactions of a memory
         # type: long-term or short-term
-        self.memory = []
+        self.memory: dict[object, dict[str, int]] = {} # permanent object memory
+        self.tile_memory = {} # coords (tuple[int, int])
+        self.objects_in_sight = [] # objects
+        self.tiles_in_sight = []
     
     # Function called to determine what a dob is going to do
     def think(self) -> bool:
@@ -38,7 +41,7 @@ class Brain():
         request = self.current_goal.get("request")
 
         # If the dob is adjacent to coords (target), interact with it
-        if self.dob.is_adjacent_to(coords) and target:
+        if self.dob.is_adjacent_to(coords) and target and request:
             self.dob.interact(target, request)
             self.current_goal = {}
             return False
@@ -69,38 +72,88 @@ class Brain():
         elif most_urgent == REPRODUCTION:
             target, coords = self.get_closest_mate() # can return (None, None) if no known mates
             request = MATE
-        elif most_urgent == POPULATION_DENSITY:
-            target, coords = None, self.dob.get_tile_in_sight(AGGRESSIVE_SEARCH)
-        elif most_urgent == DOBAMINE() and self.is_partnered():
-            partner = self.is_partnered()
-            target, coords = partner, partner.grid_pos
-            request = COMMUNICATE 
+
+        # TODO: Rework beyond this point! -------------------------------->
+        # elif most_urgent == POPULATION_DENSITY:
+        #     target, coords = None, self.dob.get_tile_in_sight(AGGRESSIVE_SEARCH)
+        # elif most_urgent == DOBAMINE() and self.is_partnered():
+        #     partner = self.is_partnered()
+        #     target, coords = partner, partner.grid_pos
+        #     request = COMMUNICATE 
 
         # If nothing was found, explore based on needs, unless it's a child, then it follows it's mom
         if not coords:
             if self.dob.mom and self.dob.age < ADULT_AGE:
                 target, coords = self.dob.mom, self.dob.mom.grid_pos
             else:
-                target, coords = self.explore()
+                target, coords = None, self.attempt_search(most_urgent)
+
+            if not coords:
+                print(f"Dob ({self.dob.id}) has no coords!")
+            request = None
 
         return {
             "target": target,
             "coords": coords,
-            "requests": request
+            "request": request
         }
     
-    def explore(self) -> str:
-        """If a dob has no viable target for goals, it will randomly explore based off factors"""
-        # Aggressive Search = prioritizes farther tiles with more dobamine gain
-        if not self.is_food_secure() or not self.is_water_secure():
-            return None, self.dob.get_tile_in_sight(AGGRESSIVE_SEARCH)
+    # TODO: Rework via tile system
+    def attempt_search(self, searching_for: str) -> tuple[int, int]:
+        # Runs a search algorithm to determine best move relative to dob's status
+        search_tags = NEED_TAGS[searching_for]
+        in_sight = self.filter_tiles_by_tag(self.tiles_in_sight, search_tags)
+        tagged_tiles = []
+        filtered_tiles = []
+
+        for tile in in_sight:
+            memory = self.tile_memory.get(tile)
+
+            if memory:
+                distance = self.dob.get_grid_distance_to(tile)
+                dobamine_value = self.get_tile_dobamine_value(tile)
+
+                if searching_for in memory.get("interests", []):
+                    tagged_tiles.append((tile, memory["value"], distance, dobamine_value))
+                else:
+                    filtered_tiles.append((tile, memory["value"], distance, dobamine_value))
         
-        # Passive = prioritizes closer tiles regardless of dobamine gain
+        # Search Values
+        # [0] == coords
+        # [1] == value
+        # [2] == distance from dob
+        # [3] == dobamine value (or a tile that has not been explored previously)
+
+        # Targeted Search = Moves towards a known resource, highest likelihood of fulfilling need
+        if tagged_tiles:
+            tagged_tiles = sorted(tagged_tiles, key=lambda coord: (-coord[1], coord[2]))
+            return tagged_tiles[0]
+
+        # Aggressive Search: Farther and higher dobamine tiles
+        # Goal: Search new, far tiles for resources
+        if not self.is_food_secure() and not self.is_water_secure():
+           sorted_tiles = sorted(filtered_tiles, key=lambda coord: (-coord[2], -coord[3]))
+        
+        # Exploratory Search: Closer and higher dobamine tiles
+        # Goal: Search new, close tiles to gain dobamine
+        # TODO: Instead of chance to wander, change by DOBAMINE URGENCY
         elif (self.is_food_secure() and self.is_water_secure()) and random() < self.get_chance_to_wander():
-            return None, self.dob.get_tile_in_sight(PASSIVE)
-        
-        # If no explore mode is valid, return no coords
-        return None, None
+            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (coord[2], -coord[3]))
+
+        # Informed Search = Father and higher value, tiles
+        # Goal: Follow newer or higher value, 
+        elif not self.is_food_secure() or not self.is_water_secure():
+            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (-coord[1], coord[2]))
+
+        # Passive Search = Closer and higher value tiles
+        else:
+            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (coord[2], -coord[3]))
+
+        return sorted_tiles[0][0]
+    
+    def filter_tiles_by_tag(self, coords: list, tags: list) -> list:
+        return [coord for coord in coords if not any(tag in self.tile_memory.get(coord, {}).get("interests", []) for tag in tags)]
+    
     def share_memory(self, target):
         # TODO: for memory in memory, get memory value to partner, share
         pass
@@ -114,41 +167,40 @@ class Brain():
 
     # region ----- MEMORY FUNCTIONS -----
 
-    def attempt_to_memorize(self, coords: list) -> None:
-        """Determines if a coord is worth memorizing or reinforcing"""
+    def receive_tiles_in_sight(self, coords: list):
+        self.tiles_in_sight = coords
+        self.objects_in_sight.clear()
+        interests_in_sight = set()
+
         for coord in coords:
-            for obj in GRID_OCCUPANCY.get(coord, []):
-                # Ignores memorizing itself and dobs who are not potential mates
-                if obj is self:
-                    continue
-                # Changes food to their respective tree for memorization
-                if obj.tag == FOOD and obj.tree != None:
-                    obj = obj.tree
-                # Reinforces a memory a bit, if they've seen it before
-                if self.does_memory_exist(obj):
-                    self.reinforce_memory(obj, reinforcement=5)
-                    continue
+            for obj in get_objects_at(coord):
+                self.objects_in_sight.append(obj)
+                if obj.tag != DOB:
+                    interests_in_sight.add(obj.tag)
+        
+        self.evaluate_tile(list(interests_in_sight))
 
-                self.add_new_memory(obj, SHORT_TERM_MEMORY)
+    def get_objects_in_sight(self, tag: str) -> list: # of objects
+        return [obj for obj in self.objects_in_sight if obj.tag == tag]
+    
+    def evaluate_tile(self, interests: list):
+        # TODO: Consider adding a slight increase if a dob FOUND a resource of value to them at that moment
+        interest_value = {
+            FOOD: 0.1,
+            WATER: 0.5,
+            TREE: 0.5
+        }
 
-    def reinforce_memory(self, target: object, reinforcement: int=0, interact: bool=False) -> None:
-        """Reinforces a memory by 'reinforcement' and increases interactions"""
-        if target.tag == FOOD and target.tree != None:
-            target = target.tree
+        tile_value = sum(interest_value.get(tag, 0.1) for tag in interests)        
+        self.save_tile_to_memory(tile_value, interests)
+    
+    def save_tile_to_memory(self, value: float, interests: list):
+        self.tile_memory[self.dob.grid_pos] = {
+            "value": value,
+            "interests": interests
+        }
 
-        for mem in self.memory:
-            if mem["object"] == target:
-                # Updates the age by the reinforcement parameter
-                mem["age"] = min((mem["age"] + reinforcement), MEMORY_AGES[mem["memory_type"]])
-
-                # If interact is being called, adds an interaction
-                if interact:
-                    mem["interactions"] += 1
-
-                # If interacted with enough, promotes memory by setting to long-term memory age, otherwise, just reinforces
-                if mem["interactions"] >= INTERACTIONS_TO_PROMOTE and mem["memory_type"] == SHORT_TERM_MEMORY:
-                    self.promote_memory(mem)
-
+    # TODO: Rework into a per tick decay of tile value
     def age_memories(self) -> None:
         """Ages memories by 1 per tick, if age == 0, the memory is forgotten"""
         updated_memories = []
@@ -167,66 +219,29 @@ class Brain():
         self.memory = updated_memories
 
     # -- MEMORY HELPER FUNCTIONS --
+    def send_interaction(self, obj: object, interacts: int):
+        if obj.tag == FOOD:
+            obj = obj.tree
 
-    def promote_memory(self, mem: dict) -> None:
-        """Promotes a memory to long-term"""
-        self.send_dobamine_gain()
-        mem["memory_type"] = LONG_TERM_MEMORY
-        mem["age"] = MEMORY_AGES[LONG_TERM_MEMORY]
-        mem["interactions"] = 0
+        self.memorize(obj, obj.tag, interactions=interacts)
 
-    def add_new_memory(self, obj: object, memory_type: str) -> None:
-        """Adds a brand new memory to short-term"""
-        self.send_dobamine_gain()
+    def memorize(self, object_to_be_memorized: object, tag: str, interactions: int=INTERACTIONS_TO_PROMOTE):
+        """Memorizes an object by interaction, if interacts >= 10, the dob can use that as a consistent coordinate"""
+        for object_in_memory in self.memory:
+            if object_in_memory == object_to_be_memorized and interactions >= 10:
+                self.memory[object_in_memory]["interactions"] += interactions
+            elif object_in_memory == object_to_be_memorized:
+                self.send_dobamine_gain()
+                self.memory[object_to_be_memorized] = {
+                    "tag": tag,
+                    "interactions": interactions
+                }
 
-        mem = {
-            "object": obj,
-            "age": MEMORY_AGES[memory_type],
-            "interactions": 0,
-            "memory_type": memory_type,
-            "tag": obj.tag
-        }
-            
-        self.memory.append(mem)
-
-    def does_memory_exist(self, obj: object) -> bool:
-        """Checks memory for an object"""
-        return any(mem["object"] == obj for mem in self.memory)
-    
-    def get_memory(self, obj: object) -> tuple[dict, str]:
-        """Gets a memory and returns it's dict and memory type"""
-        for mem in self.memory:
-            if mem["object"] == obj:
-                return mem, mem["memory_type"]
-        
-        return None, None
-    
-    def forget_memory(self, obj: object) -> None:
-        """Forgets a memory if the interactions get too low"""
-        mem, _ = self.get_memory(obj)
-        
-        mem["interactions"] -= 1
-
-        if mem["interactions"] < 0:
-            self.memory.remove(mem)
-
-    def has_memory_of(self, tag: str, specific_search: str=None) -> list:
-        """Checks memories for tags, returns list prioritizing short-term first"""
-        short = [mem["object"] for mem in self.memory if mem["memory_type"] == SHORT_TERM_MEMORY and mem["object"].tag == tag]
-        if specific_search == SHORT_TERM_MEMORY:
-            return short
-        
-        long = [mem["object"] for mem in self.memory if mem["memory_type"] == LONG_TERM_MEMORY and mem["object"].tag == tag]
-        if specific_search == LONG_TERM_MEMORY:
-            return long
-        
-        return short + long
-    
     # endregion
     
     # region ----- DOBAMINE FUNCTIONS -----
 
-    def get_dobamine_gain(self) -> int:
+    def get_dobamine_decay(self) -> int:
         """Incrememts dobamine per tick in dob.exist()"""
         dobamine_gain = -5
 
@@ -238,6 +253,11 @@ class Brain():
         
         self.send_dobamine_gain(dobamine_gain)
 
+    def get_tile_dobamine_value(self, coord: tuple[int, int]) -> int:
+        if coord not in self.tile_memory.get(coord, []):
+            return DOBAMINE_TILE_VALUE
+        return 0
+    
     def send_dobamine_gain(self, gain: int=1) -> None:
         """Increases dobamine by 'gain'"""
         self.current_dobamine = max(0, min(self.max_dobamine, self.current_dobamine + gain))
@@ -252,7 +272,8 @@ class Brain():
             the_urge = (self.hunger_ratio + self.thirst_ratio) / 2
 
             # If there's a nearby mate, the urge to reproduce is stronger
-            nearby_mate = self.get_known_mates()
+            # TODO: Increase bonus if partner
+            nearby_mate = self.get_potential_mates()
             if nearby_mate:
                 urgency = min(1.0, the_urge + NEARBY_MATE_BONUS)
 
@@ -264,45 +285,41 @@ class Brain():
 
         return urgency
     
-    def get_known_mates(self) -> list:
-        """Checks memory for any known mates or returns if there is a partner"""
+    def get_potential_mates(self) -> list:
+        """Analyzes nearby dobs to determine if they're a potential mate"""
+        bad_matches = []
+
         for mem in self.memory:
             if mem["tag"] == "partner":
                 return [mem["object"]]
+            elif mem["tag"] == "bad_mate":
+                bad_matches.append(mem["object"])
             
-        return [mem["object"] for mem in self.memory 
-                if mem["object"].tag == DOB and
-                mem["object"].sex != self.dob.sex and
-                mem["object"].can_mate() and
-                mem["tag"] != "bad_mate" and
-                not mem["object"].brain.is_partnered()]
+        return [obj for obj in self.objects_in_sight
+                if obj.tag == DOB
+                and obj.sex != self.dob.sex
+                and obj.can_mate()
+                and obj not in bad_matches
+                and not obj.brain.is_partnered()]
 
     def get_closest_mate(self):
         """Gets the closest viable mate to the dob"""
-        matches = self.get_known_mates()
+        matches = self.get_potential_mates()
 
         if matches:
             target = min(matches, key=lambda m: self.dob.get_grid_distance_to(m.grid_pos))
             return target, target.grid_pos
 
         return None, None
-    
-    def remember_bad_mate(self, bad_mate):
+
+    def remember_bad_mate(self, bad_mate: object):
         """Remembers a bad mate so they will not attempt mating again"""
-        for mem in self.memory:
-            if mem["object"] == bad_mate:
-                mem["tag"] = "bad_mate"
-                mem["memory_type"] = PERMANENT_TERM_MEMORY
-                return
+        self.memorize(bad_mate, "bad_mate")
     
-    def form_partnership(self, partner):
-        for mem in self.memory:
-            if mem["object"] == partner:
-                mem["tag"] = "partner"
-                mem["memory_type"] = PERMANENT_TERM_MEMORY
-                return
+    def form_partnership(self, partner: object):
+        self.memorize(partner, "partner")
     
-    def is_partnered(self):
+    def is_partnered(self) -> object:
         for mem in self.memory:
             if mem["tag"] == "partner":
                 return mem["object"]
@@ -335,8 +352,8 @@ class Brain():
             WATER: self.thirst_urgency * water_security,
             FOOD: self.hunger_urgency * food_security,
             REPRODUCTION: self.determine_sexual_urge() * no_more_offspring,
-            POPULATION_DENSITY: self.determine_pop_density_urge(),
-            DOBAMINE: self.determine_dobamine_needs() * dobamine
+            # POPULATION_DENSITY: self.determine_pop_density_urge(),
+            # DOBAMINE: self.determine_dobamine_needs() * dobamine
         }
 
     def has_full_family(self):
@@ -362,35 +379,27 @@ class Brain():
 
     # region ----- FOOD BRAIN FUNCTIONS -----
 
-    def get_closest_food(self):
+    def get_closest_food(self) -> tuple[object, tuple[int, int]]:
         """Get the closet food to the dob"""
-        matches = []
-
-        # Checks trees for food, if tree has no food, it may be forgotten
-        for tree in self.has_memory_of(TREE):
-            if not tree.grown_foods:
-                self.forget_memory(tree)
-                continue
-            matches.extend(tree.grown_foods)
+        matches = self.get_objects_in_sight(FOOD)
 
         if matches:
             target = min(matches, key=lambda m: self.dob.get_grid_distance_to(m.grid_pos))
             return target, target.grid_pos
 
         return None, None
-
     
     def is_food_secure(self) -> bool:
-        """Checks if dob knows of food or is higher than 60% calories"""
-        return len(self.has_memory_of(FOOD, specific_search=LONG_TERM_MEMORY)) > 0 or self.dob.current_calories > self.dob.max_calories * 0.6
+        """Checks if dob is higher than 40% calories"""
+        return self.dob.current_calories > self.dob.max_calories * 0.4
     
     # endregion
 
     # region ----- WATER BRAIN FUNCTIONS -----
 
-    def get_closest_water(self):
+    def get_closest_water(self) -> tuple[object, tuple[int, int]]:
         """Get the closet water to the dob"""
-        matches = self.has_memory_of(WATER)
+        matches = self.get_objects_in_sight(WATER)
 
         # Since there's only one water object, it's actually checking the closest water tiles
         closest = None, None
@@ -406,7 +415,7 @@ class Brain():
         return closest
 
     def is_water_secure(self) -> bool:
-        """Checks if dob knows of water or is higher than 60% hydration"""
-        return len(self.has_memory_of(WATER, specific_search=LONG_TERM_MEMORY)) > 0 or self.dob.current_hydration > self.dob.max_hydration * 0.6
+        """Checks if dob is higher than 40% hydration"""
+        return self.dob.current_hydration > self.dob.max_hydration * 0.4
     
     # endregion

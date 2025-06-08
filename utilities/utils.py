@@ -43,11 +43,9 @@ def add_object_to_GO(obj: object, coords: tuple[int, int]):
 
     GRID_OCCUPANCY[coords].append(obj)
 
-def check_GO(coords: tuple[int, int]):
-    """Checks the GRID_OCCUPANCY for a tile"""
-    if coords in GRID_OCCUPANCY:
-        return True
-    return False
+def get_objects_at(coords: tuple[int, int]) -> object:
+    """Checks the GRID_OCCUPANCY for an object and returns list"""
+    return GRID_OCCUPANCY.get(coords, []) if tile_occupied(coords) else []
 
 def get_adjacent_tiles(grid_coords: tuple[int, int],
                        diagonals: bool=True,
