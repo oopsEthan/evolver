@@ -70,6 +70,8 @@ class Brain():
         needs = self.get_urgencies()
         most_urgent = max(needs, key=needs.get)
 
+        print(most_urgent)
+
         # Attempts to fulfill the most urgent needs
         if most_urgent == WATER:
             target, coords = self.get_closest_water() # can return (None, None) if no known water
@@ -114,7 +116,7 @@ class Brain():
 
         if searching_for in NEED_TAGS.keys():
             search_tags = NEED_TAGS[searching_for]
-            in_sight = self.filter_tiles_by_tag(self.tiles_in_sight, search_tags)
+            in_sight = self.filter_tiles(self.tiles_in_sight, search_tags)
 
         tagged_tiles = self.search_for_tag_in_sight(searching_for)
         recalled_tiles = self.get_memorable_tiles()
@@ -202,8 +204,11 @@ class Brain():
         
         return evaluated_tiles
     
-    def filter_tiles_by_tag(self, coords: list, tags: list) -> list:
-        return [coord for coord in coords if not any(tag in self.tile_memory.get(coord, {}).get("interests", []) for tag in tags)]
+    # TODO: I want this to filter by tag, if tag, and "is_surrounded == False"
+    def filter_tiles(self, list_of_tiles: list, filter_tags: list=[]) -> list:
+        return [tile for tile in list_of_tiles
+                if not any(tag in self.tile_memory.get(tile, {}).get("interests", []) for tag in filter_tags)
+                and not is_surrounded(tile)]
     
     def share_memory(self, target):
         # TODO: for memory in memory, get memory value to partner, share
@@ -388,9 +393,11 @@ class Brain():
         # Basic ratios of current / max, returns 0.0 to 1.0
         self.thirst_ratio = self.dob.current_hydration / self.dob.max_hydration
         self.hunger_ratio = self.dob.current_calories / self.dob.max_calories
+        self.dobamine_ratio = self.current_dobamine / self.max_dobamine
 
         self.thirst_urgency = 1 - self.thirst_ratio
         self.hunger_urgency = 1 - self.hunger_ratio
+        self.dobamine_urgency = 1 - self.dobamine_ratio
 
         food_security = 0.6 if self.is_food_secure() else 1.0
         water_security = 0.6 if self.is_water_secure() else 1.0
@@ -407,7 +414,7 @@ class Brain():
             FOOD: self.hunger_urgency * food_security,
             REPRODUCTION: self.determine_sexual_urge() * no_more_offspring,
             # POPULATION_DENSITY: self.determine_pop_density_urge(),
-            DOBAMINE: self.determine_dobamine_needs()
+            DOBAMINE: self.determine_dobamine_needs() * 0.5
         }
 
     def has_full_family(self):

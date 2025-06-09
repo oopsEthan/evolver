@@ -70,4 +70,5 @@ def get_available_adjacents(grid_coords: tuple[int, int], diagonals: bool=False,
         return available_adjacent_tiles
 
 def is_surrounded(grid_coords: tuple[int, int]) -> bool:
+    """If there are available adjacent cardinal positions, return True"""
     return False if get_available_adjacents(grid_coords) else True

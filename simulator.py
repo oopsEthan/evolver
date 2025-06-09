@@ -45,7 +45,8 @@ class Simulator():
                 self.tick_dobs()
 
                 # -- Debugging --
-
+                self._draw_grid_DEBUG()
+                
                 # -- End of Drawing --
                 pygame.display.flip()
 
