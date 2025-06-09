@@ -85,7 +85,7 @@ class Food_Tree(Simulation_Object):
         return True
 
     def get_growth_spot(self) -> tuple[int, int]:
-        potential_spots = get_adjacent_tiles(self.grid_pos, diagonals=False, avoid_occupied=True)
+        potential_spots = get_available_adjacents(self.grid_pos)
         if not potential_spots:
             print(f"{self.id} has no potential grow spots!")
             return None
@@ -107,12 +107,11 @@ class Food_Tree(Simulation_Object):
         self.grown_foods.append(food)
     
     def adjust_spawn(self, coords):
-        adjacents = get_adjacent_tiles(coords, diagonals=False, avoid_occupied=False)
+        adjacents = get_available_adjacents(coords)
         valid = [tile for tile in adjacents if within_bounds(tile) and not tile_occupied(tile)]
 
         if not valid:
             return None
-        
         if len(valid) <= 2:
             return self.adjust_spawn(choice(valid))
 

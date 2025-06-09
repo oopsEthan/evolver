@@ -1,7 +1,7 @@
 import pygame
 from random import choice, choices, randint, random
 from utilities.config import *
-from utilities.utils import tile_occupied, within_bounds, get_adjacent_tiles, remove_object_from_GO
+from utilities.utils import *
 from dobs.brain import Brain
 from world_objects import Simulation_Object
 
@@ -31,12 +31,10 @@ class Dob(Simulation_Object):
     # Moves dob to grid coords
     def move_towards(self, target: tuple[int, int], repath: bool=False) -> bool:
         if len(self.current_path) == 0 or repath:
-            if self.is_adjacent_to(target):
-                return
-            
             self.current_path = self.find_path(self.grid_pos, target)
 
         if len(self.current_path) == 0:
+            print(f"ERROR: Dob ({self.id}) path returned as {self.current_path}")
             return
 
         next_step = self.current_path[0]
@@ -59,9 +57,11 @@ class Dob(Simulation_Object):
 
         if tile_occupied(end_pos):
             if quick_repath:
+                print("quick repath, sending []")
                 return []
-            end_pos = find_available_adjacent(self, end_pos)
+            end_pos = choice(get_available_adjacents(end_pos))
             if not end_pos:
+                print("no end pos, sending []")
                 return []
 
         while queue:
@@ -69,12 +69,13 @@ class Dob(Simulation_Object):
             if current_pos == end_pos:
                 return path
 
-            for neighbor in get_adjacent_tiles(current_pos):
+            for neighbor in get_available_adjacents(current_pos):
                 if neighbor not in visited and within_bounds(neighbor):
                     visited.add(neighbor)
                     if not tile_occupied(neighbor) or neighbor == end_pos:
                         queue.append((neighbor, path + [neighbor]))
 
+        print(f"no path found from {start_pos} to {end_pos}!")
         return []
 
     # endregion
@@ -327,13 +328,3 @@ class Dob(Simulation_Object):
         }
     
     # endregion
-
-# region ----- LOCAL FUNCTIONS -----
-
-def find_available_adjacent(obj, coords):
-        adjacents = get_adjacent_tiles(coords, diagonals=False, avoid_occupied=True)
-        while adjacents == []:
-            return None
-        return choice(adjacents)
-
-# endregion

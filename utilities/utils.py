@@ -47,40 +47,27 @@ def get_objects_at(coords: tuple[int, int]) -> object:
     """Checks the GRID_OCCUPANCY for an object and returns list"""
     return GRID_OCCUPANCY.get(coords, []) if tile_occupied(coords) else []
 
-def get_adjacent_tiles(grid_coords: tuple[int, int],
-                       diagonals: bool=True,
-                       cardinals: bool=True,
-                       avoid_occupied: bool=False) -> list:
-    """
-    Returns a list of adjacent (x, y) tile coordinates around a given grid position.
+def get_available_adjacents(grid_coords: tuple[int, int], diagonals: bool=False, cardinals: bool=True):
+        available_adjacent_tiles = []
+        positions_to_check = []
 
-    Parameters:
-    - grid_coords: The (x, y) grid position to check around.
-    - diagonals: If True, includes diagonal neighbors.
-    - cardinals: If True, includes cardinal neighbors.
-    - avoid_occupied: If True, excludes tiles that are currently occupied.
+        if diagonals:
+            positions_to_check += GRID_DIAGONALS
 
-    Returns:
-    - List of (x, y) tuples representing adjacent tiles.
-    """
+        if cardinals:
+            positions_to_check += GRID_CARDINALS
+        
+        for coord in positions_to_check:
+            pos = (grid_coords[0] + coord[0], grid_coords[1] + coord[1])
 
-    adjacents = []
-    positions_to_check = []
+            if not within_bounds(pos):
+                continue
+            if tile_occupied(pos):
+                continue
+                
+            available_adjacent_tiles.append(pos)
 
-    if diagonals:
-        positions_to_check += GRID_DIAGONALS
+        return available_adjacent_tiles
 
-    if cardinals:
-        positions_to_check += GRID_CARDINALS
-    
-    for coord in positions_to_check:
-        pos = (grid_coords[0] + coord[0], grid_coords[1] + coord[1])
-
-        if not within_bounds(pos):
-            continue
-        if avoid_occupied and tile_occupied(pos):
-            continue
-
-        adjacents.append(pos)
-    
-    return adjacents
+def is_surrounded(grid_coords: tuple[int, int]) -> bool:
+    return False if get_available_adjacents(grid_coords) else True

@@ -1,7 +1,7 @@
 # region ----- UTILITY -----
 
 # UI Settings
-TPS = 100
+TPS = 10
 MAX_X = 720
 MAX_Y = 720
 TILE_SIZE = 20

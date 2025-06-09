@@ -124,6 +124,7 @@ class Simulator():
     def tick_dobs(self) -> None:
         for dob in ACTIVE_DOBS[:]:
             dob.exist(self.screen, self.tick)
+            self._draw_path_DEBUG(dob)
             if dob.alive == False:
                 self.data_collector.process_package(dob.collect_package())
                 ACTIVE_DOBS.remove(dob)

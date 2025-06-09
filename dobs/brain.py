@@ -33,7 +33,7 @@ class Brain():
     def think(self) -> bool:
         new_goal = self.determine_goal()
         
-        if not self.current_goal or not self.current_goal.get("coords"):
+        if self.current_goal == {}:
             self.current_goal = new_goal
 
         coords = self.current_goal.get("coords")
@@ -41,7 +41,7 @@ class Brain():
         request = self.current_goal.get("request")
 
         # If the dob is adjacent to coords (target), interact with it
-        if self.dob.is_adjacent_to(coords) and target and request:
+        if self.dob.is_adjacent_to(coords) and request:
             self.dob.interact(target, request)
             self.current_goal = {}
             return False
@@ -88,8 +88,6 @@ class Brain():
             else:
                 target, coords = None, self.attempt_search(most_urgent)
 
-            if not coords:
-                print(f"Dob ({self.dob.id}) has no coords!")
             request = None
 
         return {
@@ -102,22 +100,27 @@ class Brain():
     def attempt_search(self, searching_for: str) -> tuple[int, int]:
         # Runs a search algorithm to determine best move relative to dob's status
         search_tags = NEED_TAGS[searching_for]
-        in_sight = self.filter_tiles_by_tag(self.tiles_in_sight, search_tags)
-        tagged_tiles = []
-        filtered_tiles = []
+        filtered_sight = self.filter_tiles_by_tag(self.tiles_in_sight, search_tags)
 
-        for tile in in_sight:
+        # The various lists that the algorithim can use to determine destination
+        tagged_tiles = []
+        memorized_tiles = []
+        unknown_tiles = []
+
+        for tile in filtered_sight:
+            dobamine_value = self.get_tile_dobamine_value(tile)
+            distance = self.dob.get_grid_distance_to(tile)
             memory = self.tile_memory.get(tile)
 
             if memory:
-                distance = self.dob.get_grid_distance_to(tile)
-                dobamine_value = self.get_tile_dobamine_value(tile)
-
                 if searching_for in memory.get("interests", []):
                     tagged_tiles.append((tile, memory["value"], distance, dobamine_value))
                 else:
-                    filtered_tiles.append((tile, memory["value"], distance, dobamine_value))
-        
+                    memorized_tiles.append((tile, memory["value"], distance, dobamine_value))
+
+            else:
+                unknown_tiles.append((tile, 0.0, distance, dobamine_value))
+
         # Search Values
         # [0] == coords
         # [1] == value
@@ -129,30 +132,50 @@ class Brain():
             tagged_tiles = sorted(tagged_tiles, key=lambda coord: (-coord[1], coord[2]))
             return tagged_tiles[0]
 
+        else:
+            mixed_filter_tiles = memorized_tiles + unknown_tiles
+
         # Aggressive Search: Farther and higher dobamine tiles
         # Goal: Search new, far tiles for resources
         if not self.is_food_secure() and not self.is_water_secure():
-           sorted_tiles = sorted(filtered_tiles, key=lambda coord: (-coord[2], -coord[3]))
+           debug_mode = "aggressive"
+           sorted_tiles = sorted(mixed_filter_tiles, key=lambda coord: (-coord[2], -coord[3]))
         
         # Exploratory Search: Closer and higher dobamine tiles
         # Goal: Search new, close tiles to gain dobamine
         # TODO: Instead of chance to wander, change by DOBAMINE URGENCY
-        elif (self.is_food_secure() and self.is_water_secure()) and random() < self.get_chance_to_wander():
-            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (coord[2], -coord[3]))
+        elif self.is_food_secure() and self.is_water_secure() and searching_for == REPRODUCTION:
+            debug_mode = "exploratory"
+            sorted_tiles = sorted(unknown_tiles, key=lambda coord: (coord[2], -coord[3]))
 
         # Informed Search = Father and higher value, tiles
         # Goal: Follow newer or higher value, 
         elif not self.is_food_secure() or not self.is_water_secure():
-            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (-coord[1], coord[2]))
+            debug_mode = "informed"
+            sorted_tiles = sorted(mixed_filter_tiles, key=lambda coord: (-coord[1], coord[2]))
 
         # Passive Search = Closer and higher value tiles
         else:
-            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (coord[2], -coord[3]))
+            debug_mode = "passive"
+            sorted_tiles = sorted(mixed_filter_tiles, key=lambda coord: (coord[2], -coord[3]))
+        
+            print(f"""Dob ({self.dob.id}) tile searched in {debug_mode} mode: {sorted_tiles[0][0]}
+                    filtered sight list: {len(filtered_sight)},
+                    tagged tiles list: {len(tagged_tiles)},
+                    memorized tiles list: {len(memorized_tiles)},
+                    unknown tiles list: {len(unknown_tiles)}""")
 
         return sorted_tiles[0][0]
     
+    def get_confidence_score(self) -> float:
+        #TODO: Return a condidence score to decide what serach pattern a dob uses
+        pass
+    
     def filter_tiles_by_tag(self, coords: list, tags: list) -> list:
-        return [coord for coord in coords if not any(tag in self.tile_memory.get(coord, {}).get("interests", []) for tag in tags)]
+        debug = [coord for coord in coords 
+                if not any(tag in self.tile_memory.get(coord, {}).get("interests", []) for tag in tags)
+                and coord != self.dob.grid_pos]
+        return debug
     
     def share_memory(self, target):
         # TODO: for memory in memory, get memory value to partner, share
@@ -181,7 +204,9 @@ class Brain():
         self.evaluate_tile(list(interests_in_sight))
 
     def get_objects_in_sight(self, tag: str) -> list: # of objects
-        return [obj for obj in self.objects_in_sight if obj.tag == tag]
+        return [obj for obj in self.objects_in_sight
+                if obj.tag == tag
+                and not is_surrounded(obj.grid_pos)]
     
     def evaluate_tile(self, interests: list):
         # TODO: Consider adding a slight increase if a dob FOUND a resource of value to them at that moment
@@ -298,6 +323,7 @@ class Brain():
         return [obj for obj in self.objects_in_sight
                 if obj.tag == DOB
                 and obj.sex != self.dob.sex
+                and not is_surrounded(obj.grid_pos)
                 and obj.can_mate()
                 and obj not in bad_matches
                 and not obj.brain.is_partnered()]
