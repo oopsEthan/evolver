@@ -1,6 +1,6 @@
 from utilities.config import *
 from utilities.utils import *
-from random import random
+from random import random, randint, choice
 
 # TODO: Add aggressive vs passive search modes based on urgency
 # TODO: Ponder orb and think how dobamine can affect urgencies
@@ -43,6 +43,8 @@ class Brain():
             self.current_goal = new_goal
 
         coords = self.current_goal.get("coords")
+        if is_surrounded(coords):
+            return
         target = self.current_goal.get("target")
         request = self.current_goal.get("request")
 
@@ -78,6 +80,8 @@ class Brain():
         elif most_urgent == REPRODUCTION:
             target, coords = self.get_closest_mate() # can return (None, None) if no known mates
             request = MATE
+        else:
+            target, coords = None, None
 
         # TODO: Rework beyond this point! -------------------------------->
         # elif most_urgent == POPULATION_DENSITY:
@@ -92,7 +96,7 @@ class Brain():
             if self.dob.mom and self.dob.age < ADULT_AGE:
                 target, coords = self.dob.mom, self.dob.mom.grid_pos
             else:
-                target, coords = None, self.attempt_search(most_urgent)
+                target, coords = None, self.search(most_urgent)
 
             if not coords:
                 print(f"Dob ({self.dob.id}) has no coords!")
@@ -104,61 +108,76 @@ class Brain():
             "request": request
         }
     
-    # TODO: Rework via tile system
     def search(self, searching_for: str) -> tuple[int, int]:
         # Runs a search algorithm to determine best move relative to dob's status
-        search_tags = NEED_TAGS[searching_for]
-        in_sight = self.filter_tiles_by_tag(self.tiles_in_sight, search_tags)
-        tagged_tiles = []
-        filtered_tiles = []
+        in_sight = []
 
-        for tile in in_sight:
-            memory = self.tile_memory.get(tile)
+        if searching_for in NEED_TAGS.keys():
+            search_tags = NEED_TAGS[searching_for]
+            in_sight = self.filter_tiles_by_tag(self.tiles_in_sight, search_tags)
 
-            if memory:
-                distance = self.dob.get_grid_distance_to(tile)
-                dobamine_value = self.get_tile_dobamine_value(tile)
+        tagged_tiles = self.search_for_tag_in_sight(searching_for)
+        recalled_tiles = self.get_memorable_tiles()
 
-                if searching_for in memory.get("interests", []):
-                    tagged_tiles.append((tile, memory["value"], distance, dobamine_value))
-                else:
-                    filtered_tiles.append((tile, memory["value"], distance, dobamine_value))
+        if in_sight:
+            potential_tiles = recalled_tiles + self.evaluate_tiles(in_sight)
         
+        else:
+            potential_tiles = recalled_tiles + self.evaluate_tiles(self.tiles_in_vision)
+
         # Search Values
         # [0] == coords
         # [1] == value
         # [2] == distance from dob
         # [3] == dobamine value (or a tile that has not been explored previously)
 
-        # Targeted Search = Moves towards a known resource, highest likelihood of fulfilling need
         if tagged_tiles:
-            tagged_tiles = sorted(tagged_tiles, key=lambda coord: (-coord[1], coord[2]))
-            return tagged_tiles[0]
+            tagged_tiles = sorted(tagged_tiles, key=_tagged_key)
+            return tagged_tiles[0][0]
 
-        # Aggressive Search: Farther and higher dobamine tiles
-        # Goal: Search new, far tiles for resources
-        if not self.is_food_secure() and not self.is_water_secure():
-           sorted_tiles = sorted(filtered_tiles, key=self._wander_mode_key())
+        confidence = self.get_confidence()
+        needs = [FOOD, TREE, WATER]
+
+        # If low confidence and searching for needs, wander
+        if confidence < HIGH_CONFIDENCE and searching_for in needs:
+           sorted_tiles = sorted(potential_tiles, key=_wander_mode_key)
         
-        # Exploratory Search: Closer and higher dobamine tiles
-        # Goal: Search new, close tiles to gain dobamine
-        # TODO: Instead of chance to wander, change by DOBAMINE URGENCY
-        elif (self.is_food_secure() and self.is_water_secure()) and random() < self.get_chance_to_wander():
-            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (coord[2], -coord[3]))
+        # If low confidence and wanting to explore, explore
+        elif confidence < HIGH_CONFIDENCE and searching_for == DOBAMINE:
+            sorted_tiles = sorted(potential_tiles, key=_explore_mode_key)
 
-        # Informed Search = Father and higher value, tiles
-        # Goal: Follow newer or higher value, 
-        elif not self.is_food_secure() or not self.is_water_secure():
-            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (-coord[1], coord[2]))
+        # If high confidence and searching for needs, search
+        elif confidence >= HIGH_CONFIDENCE and searching_for in needs:
+            sorted_tiles = sorted(potential_tiles, key=_search_mode_key)
 
-        # Passive Search = Closer and higher value tiles
+        # If high confidence and no specific search request, comfort
+        elif confidence >= HIGH_CONFIDENCE:
+            sorted_tiles = sorted(potential_tiles, key=_comfort_mode_key)
+
         else:
-            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (coord[2], -coord[3]))
+            return choice(potential_tiles)[0]
 
-        return sorted_tiles[0][0]
+        variation = randint(0, min(2, len(sorted_tiles) - 1))
+
+        return sorted_tiles[variation][0]
+    
+    def get_confidence(self) -> float:
+        tile_matches = [tile for tile in self.tiles_in_sight if tile in self._memorable_tiles()]
+        return min(1.0, len(tile_matches) / len(self.tiles_in_sight)) if self.tiles_in_sight else 0.0
+
+    def _memorable_tiles(self) -> list:
+        return list(self.tile_memory.keys())
     
     def get_memorable_tiles(self) -> list:
-        return list(self.tile_memory.keys())
+        recalled_tiles = []
+
+        for tile, tile_information in self.tile_memory.items():
+            distance = self.dob.get_grid_distance_to(tile)
+            dobamine_value = self.get_tile_dobamine_value(tile)
+
+            recalled_tiles.append((tile, tile_information["value"], distance, dobamine_value))
+        
+        return recalled_tiles
     
     def search_for_tag_in_sight(self, searching_for: str) -> list:
         tagged_tiles = []
@@ -171,6 +190,17 @@ class Brain():
                 tagged_tiles.append((tile, tile_information["value"], distance, dobamine_value))
 
         return tagged_tiles  
+    
+    def evaluate_tiles(self, tiles: list) -> list:
+        evaluated_tiles = []
+
+        for tile in tiles:
+            distance = self.dob.get_grid_distance_to(tile)
+            dobamine_value = self.get_tile_dobamine_value(tile)
+
+            evaluated_tiles.append((tile, 0.0, distance, dobamine_value))
+        
+        return evaluated_tiles
     
     def filter_tiles_by_tag(self, coords: list, tags: list) -> list:
         return [coord for coord in coords if not any(tag in self.tile_memory.get(coord, {}).get("interests", []) for tag in tags)]
@@ -377,7 +407,7 @@ class Brain():
             FOOD: self.hunger_urgency * food_security,
             REPRODUCTION: self.determine_sexual_urge() * no_more_offspring,
             # POPULATION_DENSITY: self.determine_pop_density_urge(),
-            # DOBAMINE: self.determine_dobamine_needs() * dobamine
+            DOBAMINE: self.determine_dobamine_needs()
         }
 
     def has_full_family(self):
@@ -454,6 +484,22 @@ class Brain():
         # [3] == DOBAMINE_TILE_VALUE
 
 def _wander_mode_key(tile) -> tuple:
+    """Sorts for far, unexplored tiles"""
     return (-tile[DISTANCE_FROM], -tile[DOBAMINE_TILE_VALUE])
+
+def _explore_mode_key(tile) -> tuple:
+    """Sorts for close, unexplored tiles"""
+    return (tile[DISTANCE_FROM], -tile[DOBAMINE_TILE_VALUE])
+
+def _search_mode_key(tile) -> tuple:
+    """Sorts for high value, far tiles"""
+    return (-tile[VALUE], -tile[DISTANCE_FROM])
+
+def _comfort_mode_key(tile) -> tuple:
+    """Sorts for high value, close tiles"""
+    return (-tile[VALUE], tile[DISTANCE_FROM])
+
+def _tagged_key(tile) -> tuple:
+    return (-tile[VALUE], tile[DISTANCE_FROM])
 
 # endregion

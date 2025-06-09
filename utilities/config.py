@@ -68,6 +68,9 @@ EAT = "eat"
 MATE = "mate"
 COMMUNICATE = "communicate"
 EXPLORE = "explore"
+
+HIGH_CONFIDENCE = 0.5
+
 # Sex
 FEMALE = "F"
 MALE = "M"
