@@ -10,6 +10,12 @@ from random import random
 
 # TODO: CLEAN THIS SHIT UP
 
+# Local Config
+COORDS = 0
+VALUE = 1
+DISTANCE_FROM = 2
+DOBAMINE_GAIN = 3
+
 class Brain():
     def __init__(self):
         self.dob = None
@@ -33,7 +39,7 @@ class Brain():
     def think(self) -> bool:
         new_goal = self.determine_goal()
         
-        if self.current_goal == {}:
+        if not self.current_goal or not self.current_goal.get("coords"):
             self.current_goal = new_goal
 
         coords = self.current_goal.get("coords")
@@ -41,7 +47,7 @@ class Brain():
         request = self.current_goal.get("request")
 
         # If the dob is adjacent to coords (target), interact with it
-        if self.dob.is_adjacent_to(coords) and request:
+        if self.dob.is_adjacent_to(coords) and target and request:
             self.dob.interact(target, request)
             self.current_goal = {}
             return False
@@ -88,6 +94,8 @@ class Brain():
             else:
                 target, coords = None, self.attempt_search(most_urgent)
 
+            if not coords:
+                print(f"Dob ({self.dob.id}) has no coords!")
             request = None
 
         return {
@@ -97,30 +105,25 @@ class Brain():
         }
     
     # TODO: Rework via tile system
-    def attempt_search(self, searching_for: str) -> tuple[int, int]:
+    def search(self, searching_for: str) -> tuple[int, int]:
         # Runs a search algorithm to determine best move relative to dob's status
         search_tags = NEED_TAGS[searching_for]
-        filtered_sight = self.filter_tiles_by_tag(self.tiles_in_sight, search_tags)
-
-        # The various lists that the algorithim can use to determine destination
+        in_sight = self.filter_tiles_by_tag(self.tiles_in_sight, search_tags)
         tagged_tiles = []
-        memorized_tiles = []
-        unknown_tiles = []
+        filtered_tiles = []
 
-        for tile in filtered_sight:
-            dobamine_value = self.get_tile_dobamine_value(tile)
-            distance = self.dob.get_grid_distance_to(tile)
+        for tile in in_sight:
             memory = self.tile_memory.get(tile)
 
             if memory:
+                distance = self.dob.get_grid_distance_to(tile)
+                dobamine_value = self.get_tile_dobamine_value(tile)
+
                 if searching_for in memory.get("interests", []):
                     tagged_tiles.append((tile, memory["value"], distance, dobamine_value))
                 else:
-                    memorized_tiles.append((tile, memory["value"], distance, dobamine_value))
-
-            else:
-                unknown_tiles.append((tile, 0.0, distance, dobamine_value))
-
+                    filtered_tiles.append((tile, memory["value"], distance, dobamine_value))
+        
         # Search Values
         # [0] == coords
         # [1] == value
@@ -132,50 +135,45 @@ class Brain():
             tagged_tiles = sorted(tagged_tiles, key=lambda coord: (-coord[1], coord[2]))
             return tagged_tiles[0]
 
-        else:
-            mixed_filter_tiles = memorized_tiles + unknown_tiles
-
         # Aggressive Search: Farther and higher dobamine tiles
         # Goal: Search new, far tiles for resources
         if not self.is_food_secure() and not self.is_water_secure():
-           debug_mode = "aggressive"
-           sorted_tiles = sorted(mixed_filter_tiles, key=lambda coord: (-coord[2], -coord[3]))
+           sorted_tiles = sorted(filtered_tiles, key=self._wander_mode_key())
         
         # Exploratory Search: Closer and higher dobamine tiles
         # Goal: Search new, close tiles to gain dobamine
         # TODO: Instead of chance to wander, change by DOBAMINE URGENCY
-        elif self.is_food_secure() and self.is_water_secure() and searching_for == REPRODUCTION:
-            debug_mode = "exploratory"
-            sorted_tiles = sorted(unknown_tiles, key=lambda coord: (coord[2], -coord[3]))
+        elif (self.is_food_secure() and self.is_water_secure()) and random() < self.get_chance_to_wander():
+            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (coord[2], -coord[3]))
 
         # Informed Search = Father and higher value, tiles
         # Goal: Follow newer or higher value, 
         elif not self.is_food_secure() or not self.is_water_secure():
-            debug_mode = "informed"
-            sorted_tiles = sorted(mixed_filter_tiles, key=lambda coord: (-coord[1], coord[2]))
+            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (-coord[1], coord[2]))
 
         # Passive Search = Closer and higher value tiles
         else:
-            debug_mode = "passive"
-            sorted_tiles = sorted(mixed_filter_tiles, key=lambda coord: (coord[2], -coord[3]))
-        
-            print(f"""Dob ({self.dob.id}) tile searched in {debug_mode} mode: {sorted_tiles[0][0]}
-                    filtered sight list: {len(filtered_sight)},
-                    tagged tiles list: {len(tagged_tiles)},
-                    memorized tiles list: {len(memorized_tiles)},
-                    unknown tiles list: {len(unknown_tiles)}""")
+            sorted_tiles = sorted(filtered_tiles, key=lambda coord: (coord[2], -coord[3]))
 
         return sorted_tiles[0][0]
     
-    def get_confidence_score(self) -> float:
-        #TODO: Return a condidence score to decide what serach pattern a dob uses
-        pass
+    def get_memorable_tiles(self) -> list:
+        return list(self.tile_memory.keys())
+    
+    def search_for_tag_in_sight(self, searching_for: str) -> list:
+        tagged_tiles = []
+
+        for tile, tile_information in self.tile_memory.items():
+            distance = self.dob.get_grid_distance_to(tile)
+            dobamine_value = self.get_tile_dobamine_value(tile)
+
+            if searching_for in tile_information.get("interests", []):
+                tagged_tiles.append((tile, tile_information["value"], distance, dobamine_value))
+
+        return tagged_tiles  
     
     def filter_tiles_by_tag(self, coords: list, tags: list) -> list:
-        debug = [coord for coord in coords 
-                if not any(tag in self.tile_memory.get(coord, {}).get("interests", []) for tag in tags)
-                and coord != self.dob.grid_pos]
-        return debug
+        return [coord for coord in coords if not any(tag in self.tile_memory.get(coord, {}).get("interests", []) for tag in tags)]
     
     def share_memory(self, target):
         # TODO: for memory in memory, get memory value to partner, share
@@ -444,4 +442,18 @@ class Brain():
         """Checks if dob is higher than 40% hydration"""
         return self.dob.current_hydration > self.dob.max_hydration * 0.4
     
+    
     # endregion
+
+# region ----- LOCAL FUNCTIONS -----
+
+        # Sort Variables
+        # [0] == COORDS
+        # [1] == VALUE
+        # [2] == DISTANCE_FROM
+        # [3] == DOBAMINE_TILE_VALUE
+
+def _wander_mode_key(tile) -> tuple:
+    return (-tile[DISTANCE_FROM], -tile[DOBAMINE_TILE_VALUE])
+
+# endregion
