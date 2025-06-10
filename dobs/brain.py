@@ -34,6 +34,7 @@ class Brain():
         self.tile_memory = {} # coords (tuple[int, int])
         self.objects_in_sight = [] # objects
         self.tiles_in_sight = []
+        self.bad_tiles = set()
     
     # Function called to determine what a dob is going to do
     def think(self) -> bool:
@@ -69,8 +70,6 @@ class Brain():
         """Evaluates what a dob needs most for decision-making"""
         needs = self.get_urgencies()
         most_urgent = max(needs, key=needs.get)
-
-        print(most_urgent)
 
         # Attempts to fulfill the most urgent needs
         if most_urgent == WATER:
@@ -111,18 +110,19 @@ class Brain():
         }
     
     def search(self, searching_for: str) -> tuple[int, int]:
-        # Runs a search algorithm to determine best move relative to dob's status
+        """Runs a search algorithm to determine best move relative to dob's circumstances"""
 
         # By default, if there are tagged tiles for what the dob is searching for, go to it
         tagged_tiles = self.get_tiles_in_sight_by_tag(searching_for)
         
         if tagged_tiles:
+            tagged_tiles = self.evaluate_tiles(tagged_tiles)
             tagged_tiles = sorted(tagged_tiles, key=_tagged_key)
             return tagged_tiles[0][0]
 
         # Otherwise, the dob will get a list of tiles in sight and from memory
-        potential_tiles = self.get_potential_tiles(searching_for)
-        potential_tiles = self.evaluate_tiles(potential_tiles)
+        potential_tiles = self.get_potential_tiles(searching_for)   # returns a list of tiles: [(x, y)]
+        potential_tiles = self.evaluate_tiles(potential_tiles)  # returns a list of tile valuations: [(x, y), distance, etc.]
 
         # Search Values
         # [0] == coords
@@ -133,54 +133,51 @@ class Brain():
         confidence = self.get_confidence()
         needs = [FOOD, TREE, WATER]
 
-        # If low confidence and searching for needs, wander
-        if confidence < HIGH_CONFIDENCE and searching_for in needs:
-           sorted_tiles = sorted(potential_tiles, key=_wander_mode_key)
+        if confidence < HIGH_CONFIDENCE:
+            if searching_for in needs:
+                key = _wander_mode_key
+            elif searching_for == DOBAMINE:
+                key = _explore_mode_key
+            else:
+                return choice(potential_tiles)[0]
         
-        # If low confidence and wanting to explore, explore
-        elif confidence < HIGH_CONFIDENCE and searching_for == DOBAMINE:
-            sorted_tiles = sorted(potential_tiles, key=_explore_mode_key)
-
-        # If high confidence and searching for needs, search
-        elif confidence >= HIGH_CONFIDENCE and searching_for in needs:
-            sorted_tiles = sorted(potential_tiles, key=_search_mode_key)
-
-        # If high confidence and no specific search request, comfort
         elif confidence >= HIGH_CONFIDENCE:
-            sorted_tiles = sorted(potential_tiles, key=_comfort_mode_key)
+            if searching_for in needs:
+                key = _search_mode_key
+            else:
+                key = _comfort_mode_key
 
-        else:
-            return choice(potential_tiles)[0]
-
+        sorted_tiles = sorted(potential_tiles, key=key)
         variation = randint(0, min(2, len(sorted_tiles) - 1))
-
         return sorted_tiles[variation][0]
     
     def get_confidence(self) -> float:
-        tile_matches = [tile for tile in self.tiles_in_sight if tile in self._memorable_tiles()]
+        tile_matches = [tile for tile in self.tiles_in_sight if tile in self.get_tiles_from_memory()]
         return min(1.0, len(tile_matches) / len(self.tiles_in_sight)) if self.tiles_in_sight else 0.0
 
-    def _memorable_tiles(self) -> list:
-        return list(self.tile_memory.keys())
-    
-    def get_potential_tiles(self, searching_for) -> list:
+    ## Tile System
+    # Tiles are valued and tagged by the dobs for movement in search()
+    def get_potential_tiles(self, searching_for) -> list[tuple[int, int]]:
         """Returns a list of potential tiles for the search system"""
-        recalled_tiles = self.get_tiles_from_memory()
+        tiles_from_memory = self.get_tiles_from_memory(searching_for)
 
         # If the dob is searching for a need, remove tiles that have alternate tags
         if searching_for in NEED_TAGS.keys():
             search_tags = NEED_TAGS[searching_for]
             in_sight = self.filter_tiles(self.tiles_in_sight, search_tags)
         
+        # Otherwise, just return a list of tiles in sight that are not surrounded
         else:
             in_sight = self.filter_tiles(self.tiles_in_sight)
         
-        return recalled_tiles + in_sight
+        return tiles_from_memory + in_sight
     
-    def get_tiles_from_memory(self) -> list:
-        return self.filter_tiles(list(self.tile_memory.keys()))
+    def get_tiles_from_memory(self, tags_to_filter: list=[]) -> list[tuple[int, int]]: 
+        """Returns a list of coordinates from memory, filtered"""
+        return self.filter_tiles(list(self.tile_memory.keys()), tags_to_filter)
     
-    def get_tiles_in_sight_by_tag(self, searching_for: str) -> list:
+    def get_tiles_in_sight_by_tag(self, searching_for: str) -> list[tuple[int, int]]:
+        """Returns a list of coordinates that share a tag,: searching_for"""
         tagged_tiles = []
 
         for tile, tile_information in self.tile_memory.items():
@@ -195,8 +192,6 @@ class Brain():
         """Takes a list of tiles and returns a list of tile evaluations for search"""
         evaluated_tiles = []
 
-        tiles = self.filter_tiles(tiles)
-
         for tile in tiles:
             value = 0.0
             distance = self.dob.get_grid_distance_to(tile)
@@ -209,11 +204,12 @@ class Brain():
         
         return evaluated_tiles
     
-    def filter_tiles(self, list_of_tiles: list, filter_tags: list=[]) -> list:
+    def filter_tiles(self, list_of_tiles: list, exclude_tiles_with_tags: list=[]) -> list:
         """Filters out tiles by tag and if they're surrounded"""
         return [tile for tile in list_of_tiles
-                if not any(tag in self.tile_memory.get(tile, {}).get("interests", []) for tag in filter_tags)
-                and not is_surrounded(tile)]
+                if not any(tag in self.tile_memory.get(tile, {}).get("interests", []) for tag in exclude_tiles_with_tags)
+                and not is_surrounded(tile)
+                and tile not in self.bad_tiles]
     
     def share_memory(self, target):
         # TODO: for memory in memory, get memory value to partner, share
@@ -441,6 +437,9 @@ class Brain():
         dobamine_ratio = self.current_dobamine / self.max_dobamine
         return min(0.2, 1 - dobamine_ratio)
     
+    def filter_objects(self, list_to_filter: list[object]) -> list:
+        return [obj for obj in list_to_filter if obj.grid_pos not in self.bad_tiles]
+    
     # endregion
 
     # region ----- FOOD BRAIN FUNCTIONS -----
@@ -448,6 +447,7 @@ class Brain():
     def get_closest_food(self) -> tuple[object, tuple[int, int]]:
         """Get the closet food to the dob"""
         matches = self.get_objects_in_sight(FOOD)
+        matches = self.filter_objects(matches)
 
         if matches:
             target = min(matches, key=lambda m: self.dob.get_grid_distance_to(m.grid_pos))
@@ -466,6 +466,7 @@ class Brain():
     def get_closest_water(self) -> tuple[object, tuple[int, int]]:
         """Get the closet water to the dob"""
         matches = self.get_objects_in_sight(WATER)
+        matches = self.filter_objects(matches)
 
         # Since there's only one water object, it's actually checking the closest water tiles
         closest = None, None
@@ -473,6 +474,8 @@ class Brain():
         
         for target in matches:
             for tile in target.water_positions:
+                if tile in self.bad_tiles or is_surrounded(tile):
+                    continue
                 dist = self.dob.get_grid_distance_to(tile)
                 if dist < closest_dist:
                     closest_dist = dist

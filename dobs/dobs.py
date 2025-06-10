@@ -16,6 +16,7 @@ class Dob(Simulation_Object):
 
         self.visited_tiles = [self.grid_pos]
         self.current_path = []
+        self.pathing_retries = 0
 
     # Called each tick to handle behavior, cooldowns, aging, and rendering
     def exist(self, surface, tick):
@@ -34,7 +35,14 @@ class Dob(Simulation_Object):
             self.current_path = self.find_path(self.grid_pos, target)
 
         if len(self.current_path) == 0:
-            print(f"ERROR: Dob ({self.id}) path returned as {self.current_path}")
+            print(f"[PATH ERROR] Dob {self.id} failed to path to {target} from {self.grid_pos}. Retry #{self.pathing_retries}")
+            self.pathing_retries += 1
+
+            if self.pathing_retries == 2 and target:
+                print(f"Dob ({self.id}) forgetting {target} forever!")
+                self.brain.bad_tiles.add(target)
+                self.pathing_retries = 0
+
             return
 
         next_step = self.current_path[0]
@@ -56,12 +64,12 @@ class Dob(Simulation_Object):
         queue = [(start_pos, [])]
 
         if tile_occupied(end_pos):
-            if quick_repath:
-                print("quick repath, sending []")
+            if quick_repath or is_surrounded(end_pos):
                 return []
+            
             end_pos = choice(get_available_adjacents(end_pos))
+
             if not end_pos:
-                print("no end pos, sending []")
                 return []
 
         while queue:
@@ -75,7 +83,6 @@ class Dob(Simulation_Object):
                     if not tile_occupied(neighbor) or neighbor == end_pos:
                         queue.append((neighbor, path + [neighbor]))
 
-        print(f"no path found from {start_pos} to {end_pos}!")
         return []
 
     # endregion
