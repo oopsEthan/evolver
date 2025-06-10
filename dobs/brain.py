@@ -112,30 +112,23 @@ class Brain():
     
     def search(self, searching_for: str) -> tuple[int, int]:
         # Runs a search algorithm to determine best move relative to dob's status
-        in_sight = []
 
-        if searching_for in NEED_TAGS.keys():
-            search_tags = NEED_TAGS[searching_for]
-            in_sight = self.filter_tiles(self.tiles_in_sight, search_tags)
-
-        tagged_tiles = self.search_for_tag_in_sight(searching_for)
-        recalled_tiles = self.get_memorable_tiles()
-
-        if in_sight:
-            potential_tiles = recalled_tiles + self.evaluate_tiles(in_sight)
+        # By default, if there are tagged tiles for what the dob is searching for, go to it
+        tagged_tiles = self.get_tiles_in_sight_by_tag(searching_for)
         
-        else:
-            potential_tiles = recalled_tiles + self.evaluate_tiles(self.tiles_in_vision)
+        if tagged_tiles:
+            tagged_tiles = sorted(tagged_tiles, key=_tagged_key)
+            return tagged_tiles[0][0]
+
+        # Otherwise, the dob will get a list of tiles in sight and from memory
+        potential_tiles = self.get_potential_tiles(searching_for)
+        potential_tiles = self.evaluate_tiles(potential_tiles)
 
         # Search Values
         # [0] == coords
         # [1] == value
         # [2] == distance from dob
         # [3] == dobamine value (or a tile that has not been explored previously)
-
-        if tagged_tiles:
-            tagged_tiles = sorted(tagged_tiles, key=_tagged_key)
-            return tagged_tiles[0][0]
 
         confidence = self.get_confidence()
         needs = [FOOD, TREE, WATER]
@@ -170,42 +163,54 @@ class Brain():
     def _memorable_tiles(self) -> list:
         return list(self.tile_memory.keys())
     
-    def get_memorable_tiles(self) -> list:
-        recalled_tiles = []
+    def get_potential_tiles(self, searching_for) -> list:
+        """Returns a list of potential tiles for the search system"""
+        recalled_tiles = self.get_tiles_from_memory()
 
-        for tile, tile_information in self.tile_memory.items():
-            distance = self.dob.get_grid_distance_to(tile)
-            dobamine_value = self.get_tile_dobamine_value(tile)
-
-            recalled_tiles.append((tile, tile_information["value"], distance, dobamine_value))
+        # If the dob is searching for a need, remove tiles that have alternate tags
+        if searching_for in NEED_TAGS.keys():
+            search_tags = NEED_TAGS[searching_for]
+            in_sight = self.filter_tiles(self.tiles_in_sight, search_tags)
         
-        return recalled_tiles
+        else:
+            in_sight = self.filter_tiles(self.tiles_in_sight)
+        
+        return recalled_tiles + in_sight
     
-    def search_for_tag_in_sight(self, searching_for: str) -> list:
+    def get_tiles_from_memory(self) -> list:
+        return self.filter_tiles(list(self.tile_memory.keys()))
+    
+    def get_tiles_in_sight_by_tag(self, searching_for: str) -> list:
         tagged_tiles = []
 
         for tile, tile_information in self.tile_memory.items():
-            distance = self.dob.get_grid_distance_to(tile)
-            dobamine_value = self.get_tile_dobamine_value(tile)
-
             if searching_for in tile_information.get("interests", []):
-                tagged_tiles.append((tile, tile_information["value"], distance, dobamine_value))
+                tagged_tiles.append(tile)
+
+        tagged_tiles = self.filter_tiles(tagged_tiles)
 
         return tagged_tiles  
     
     def evaluate_tiles(self, tiles: list) -> list:
+        """Takes a list of tiles and returns a list of tile evaluations for search"""
         evaluated_tiles = []
 
+        tiles = self.filter_tiles(tiles)
+
         for tile in tiles:
+            value = 0.0
             distance = self.dob.get_grid_distance_to(tile)
             dobamine_value = self.get_tile_dobamine_value(tile)
 
-            evaluated_tiles.append((tile, 0.0, distance, dobamine_value))
+            if tile in self.tile_memory.keys():
+                value = self.tile_memory[tile]["value"]
+
+            evaluated_tiles.append((tile, value, distance, dobamine_value))
         
         return evaluated_tiles
     
-    # TODO: I want this to filter by tag, if tag, and "is_surrounded == False"
     def filter_tiles(self, list_of_tiles: list, filter_tags: list=[]) -> list:
+        """Filters out tiles by tag and if they're surrounded"""
         return [tile for tile in list_of_tiles
                 if not any(tag in self.tile_memory.get(tile, {}).get("interests", []) for tag in filter_tags)
                 and not is_surrounded(tile)]
