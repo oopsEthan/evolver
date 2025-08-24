@@ -1,6 +1,6 @@
 from utilities.config import *
 from utilities.utils import *
-from random import random, randint, choice
+from random import random, choice, choices
 
 # TODO: Add aggressive vs passive search modes based on urgency
 # TODO: Ponder orb and think how dobamine can affect urgencies
@@ -44,8 +44,6 @@ class Brain():
             self.current_goal = new_goal
 
         coords = self.current_goal.get("coords")
-        if is_surrounded(coords):
-            return
         target = self.current_goal.get("target")
         request = self.current_goal.get("request")
 
@@ -55,6 +53,9 @@ class Brain():
             self.current_goal = {}
             return False
 
+        if is_surrounded(coords):
+            return
+        
         # If the dobs goal has changed, re-evaluate it's path
         if coords != new_goal.get("coords"):
             self.dob.move_towards(new_goal["coords"], repath=True)
@@ -148,8 +149,15 @@ class Brain():
                 key = _comfort_mode_key
 
         sorted_tiles = sorted(potential_tiles, key=key)
-        variation = randint(0, min(2, len(sorted_tiles) - 1))
-        return sorted_tiles[variation][0]
+        
+        # selected_tile = randint(0, min(2, len(sorted_tiles) - 1))
+
+        decay_rate = 0.45
+        selection_weights = [50 * (decay_rate**i) for i in range(len(sorted_tiles))]
+        selected_tile = choices(sorted_tiles, weights=selection_weights, k=1)[0]
+
+
+        return selected_tile[0]
     
     def get_confidence(self) -> float:
         tile_matches = [tile for tile in self.tiles_in_sight if tile in self.get_tiles_from_memory()]
@@ -475,7 +483,7 @@ class Brain():
         for target in matches:
             for tile in target.water_positions:
                 if tile in self.bad_tiles or is_surrounded(tile):
-                    continue
+                    continue    
                 dist = self.dob.get_grid_distance_to(tile)
                 if dist < closest_dist:
                     closest_dist = dist

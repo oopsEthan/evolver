@@ -27,7 +27,7 @@ class Simulator():
         while is_running:
             self.screen.fill("#5FF46F")
 
-            for event in pygame.event.get():
+            for event in pygame.event.get():    
                 if event.type == pygame.QUIT:
                     is_running = False
                 elif event.type == pygame.KEYDOWN:

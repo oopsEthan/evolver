@@ -64,7 +64,7 @@ def get_available_adjacents(grid_coords: tuple[int, int], diagonals: bool=False,
                 continue
             if tile_occupied(pos):
                 continue
-                
+
             available_adjacent_tiles.append(pos)
 
         return available_adjacent_tiles
