@@ -53,7 +53,7 @@ class Brain():
             self.current_goal = {}
             return False
 
-        if is_surrounded(coords):
+        if is_surrounded(coords, self.dob.grid_pos):
             return
         
         # If the dobs goal has changed, re-evaluate it's path

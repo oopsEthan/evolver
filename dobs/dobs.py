@@ -25,6 +25,8 @@ class Dob(Simulation_Object):
         self.see()
         goal_change_DEBUG = self.brain.think()
 
+        # print(f"({self.id}) | {self.grid_pos}")
+
         self.increment(tick)
 
     # region ----- PATHFINDING FUNCTIONS -----
